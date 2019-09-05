@@ -17,7 +17,7 @@
 
 #define memcost 4*1024*1024
 static const unsigned int d_mtp = 1;
-static const uint8_t L = 64;
+static const uint8_t L = 16;
 static const unsigned int memory_cost = memcost;
 extern void get_tree(int thr_id,uint8_t *d);
 extern uint8_t* get_tree2(int thr_id);
