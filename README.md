@@ -45,13 +45,15 @@ $ ./make # add -j to compile faster
 Running ccminer
 ----------------------------------------
 
-* Official TecraCoin pool (recommended):
+### Official TecraCoin pool (_recommended_):
+1. You don't need to run a wallet to mine with our pool, just start a miner with your TCR address for rewards:
 
 ```bash
-ccminer -a mtp-tcr -o stratum+tcp://pool.tecracoin.io:4553 -u TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL.worker   -p 0,strict,verbose,d=500 -i 20
+ccminer -a mtp-tcr -o stratum+tcp://pool.tecracoin.io:4553 -u YOUR_TCR_ADDRESS.worker   -p 0,strict,verbose,d=500 -i 20
 ```
 
-* Solo mining:
+### Solo mining:
+_We don't recommend running miner solo_
 1. Run your TecraCoin wallet locally with `server=1` and RPC credentials(`rpcuser`,`rpcpassword`).
 2. Start miner:
 ```bash
