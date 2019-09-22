@@ -57,7 +57,7 @@ _We don't recommend running miner solo_
 1. Run your TecraCoin wallet locally with `server=1` and RPC credentials(`rpcuser`,`rpcpassword`).
 2. Start miner:
 ```bash
-ccminer -a mtp16 -o  http://127.0.0.1:rpcport  -u rpcuser -p rpcpassword --coinbase-addr tecracoin-address  -d listofcards  --no-getwork
+ccminer -a mtp-tcr -o  http://127.0.0.1:rpcport  -u rpcuser -p rpcpassword --coinbase-addr tecracoin-address  -d listofcards  --no-getwork
 ```
 
 About source code dependencies for windows
