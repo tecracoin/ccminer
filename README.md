@@ -79,9 +79,11 @@ To rebuild them, you need to clone this repository and its submodules :
 
 
 
+License
+-------
 
-
-
+TecraCoin ccminer is released under the terms of the GPL-3.0 license. See [COPYING](COPYING) for more
+information or see https://opensource.org/licenses/GPL-3.0.
 
 
 
