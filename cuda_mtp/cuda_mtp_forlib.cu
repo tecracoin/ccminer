@@ -661,9 +661,9 @@ void mtp_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const Ty
 			((BlakeType*)&YLocal)[i] = blakeFinall[i] ^ v.u2[i] ^ v.u2[i + 8];
 
 
-
-		///////////////////////////////
-		#pragma unroll mtp_L
+                const int zmtp_L = mtp_L;
+		
+                #pragma unroll zmtp_L
 		for (int j = 0; j < mtp_L; j++)
 		{
 			__shared__ __align__(128)  Type far [(TPB_MTP /Granularity2)][Granularity2][Granularity2 + SHR_OFF];
