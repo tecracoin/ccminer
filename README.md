@@ -59,22 +59,22 @@ Running ccminer with mtp and requirement
 mtp requires 4.4Gb of vram, hence cards with less than 4.5Gb of vram won't work.
 The program uses also around 500Mb and 4.4xCard Number of swap/virtual memory
 
-*Instruction to mine on zcoin wallet (solo mining)
+*Instruction to mine on tecracoin wallet (solo mining)
 
 command line structure
 
-ccminer -a mtp -o  http://127.0.0.1:rpcport  -u rpcuser -p rpcpassword --coinbase-addr zcoin-address  -d listofcards  --no-getwork  
+ccminer -a mtp16 -o  http://127.0.0.1:rpcport  -u rpcuser -p rpcpassword --coinbase-addr tecracoin-address  -d listofcards  --no-getwork  
 
-Example (RUN-ZCOIN-MTP.cmd)
+Example (RUN-TCR-MTP.cmd)
 
-ccminer -a mtp -o  http://127.0.0.1:8382  -u djm34 -p password --coinbase-addr aChWVb8CpgajadpLmiwDZvZaKizQgHxfh5 --no-getwork -d 0,1,2 -i 22
+ccminer -a mtp16 -o  http://127.0.0.1:8382  -u djm34 -p password --coinbase-addr TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL --no-getwork -d 0,1,2 -i 22
 
 
-zcoin wallet should also be run with "server=1" option and "rpcport,rpcuser,rpcpassword" should match those of zcoin.conf
+tecracoin wallet should also be run with "server=1" option and "rpcport,rpcuser,rpcpassword" should match those of tecracoin.conf
 
 
 *Instruction for mining on pool: 
-ccminer -a mtp -o stratum+tcp://zcoin.mintpond.com:3000 -u aChWVb8CpgajadpLmiwDZvZaKizQgHxfh5.worker   -p 0,strict,verbose,d=500 -i 20 
+ccminer -a mtp16 -o stratum+tcp://pool.tecracoin.io:4553 -u TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL.worker   -p 0,strict,verbose,d=500 -i 20 
 
 
 
