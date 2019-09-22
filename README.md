@@ -1,4 +1,4 @@
-ccminer with mtp support
+Ccminer with MTP-TCR support
 ========================
 djm34 2017-2018
 
@@ -9,6 +9,12 @@ donation addresses:
 	XZC: aChWVb8CpgajadpLmiwDZvZaKizQgHxfh5
 
 Based on Christian Buchner's &amp; Christian H.'s CUDA project and tpruvot@github.
+
+Requirements
+----------------------------------------
+
+MTP-TCR requires 4.4Gb of vram, hence cards with less than 4.5Gb of vram won't work.
+The program uses also around 500Mb and 4.4xCard Number of swap/virtual memory
 
 
 Building on windows
@@ -36,6 +42,22 @@ $ ./configure
 $ ./make # add -j to compile faster
 ```
 
+Running ccminer
+----------------------------------------
+
+* Official TecraCoin pool (recommended):
+
+```bash
+ccminer -a mtp-tcr -o stratum+tcp://pool.tecracoin.io:4553 -u TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL.worker   -p 0,strict,verbose,d=500 -i 20
+```
+
+* Solo mining:
+1. Run your TecraCoin wallet locally with `server=1` and RPC credentials(`rpcuser`,`rpcpassword`).
+2. Start miner:
+```bash
+ccminer -a mtp16 -o  http://127.0.0.1:rpcport  -u rpcuser -p rpcpassword --coinbase-addr tecracoin-address  -d listofcards  --no-getwork
+```
+
 About source code dependencies for windows
 ------------------------------------------
 
@@ -51,30 +73,6 @@ The tree now contains recent prebuilt openssl and curl .lib for both x86 and x64
 
 To rebuild them, you need to clone this repository and its submodules :
     git clone https://github.com/peters/curl-for-windows.git compat/curl-for-windows
-
-
-Running ccminer with mtp and requirement
-----------------------------------------
-
-mtp requires 4.4Gb of vram, hence cards with less than 4.5Gb of vram won't work.
-The program uses also around 500Mb and 4.4xCard Number of swap/virtual memory
-
-*Instruction to mine on tecracoin wallet (solo mining)
-
-command line structure
-
-`ccminer -a mtp16 -o  http://127.0.0.1:rpcport  -u rpcuser -p rpcpassword --coinbase-addr tecracoin-address  -d listofcards  --no-getwork`
-
-Example (RUN-TCR-MTP.cmd)
-
-`ccminer -a mtp16 -o  http://127.0.0.1:8382  -u tcrminer -p password --coinbase-addr TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL --no-getwork -d 0,1,2 -i 22`
-
-
-tecracoin wallet should also be run with "server=1" option and "rpcport,rpcuser,rpcpassword" should match those of tecracoin.conf
-
-
-*Instruction for mining on pool: 
-`ccminer -a mtp16 -o stratum+tcp://pool.tecracoin.io:4553 -u TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL.worker   -p 0,strict,verbose,d=500 -i 20`
 
 
 
