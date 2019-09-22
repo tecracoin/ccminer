@@ -22,19 +22,19 @@ Then click "generate"
 
 Building on Linux (tested on Ubuntu 16.04)
 ------------------------------------------
-
-
-	* sudo apt-get update && sudo apt-get -y dist-upgrade
-	* sudo apt-get -y install gcc g++ build-essential automake linux-headers-$(uname -r) git gawk libcurl4-openssl-dev libjansson-dev xorg libc++-dev libgmp-dev python-dev
-
-	* Installing CUDA 10.1 and compatible drivers from nvidia website and not from ubuntu package is usually easier
-	
-	* Compiling ccminner:
-
-	./autogen.sh
-	./configure
-	./make
-
+1. Install dependencies:
+```bash
+$ sudo apt-get update
+$ sudo apt-get -y dist-upgrade
+$ sudo apt-get -y install gcc g++ build-essential automake linux-headers-$(uname -r) git gawk libcurl4-openssl-dev libjansson-dev xorg libc++-dev libgmp-dev python-dev
+```
+* Note: Installing CUDA 10.1 and compatible drivers from nvidia website and not from ubuntu package is usually easier
+2. Compile ccminner:
+```bash
+$ ./autogen.sh
+$ ./configure
+$ ./make # add -j to compile faster
+```
 
 About source code dependencies for windows
 ------------------------------------------
@@ -63,18 +63,18 @@ The program uses also around 500Mb and 4.4xCard Number of swap/virtual memory
 
 command line structure
 
-ccminer -a mtp16 -o  http://127.0.0.1:rpcport  -u rpcuser -p rpcpassword --coinbase-addr tecracoin-address  -d listofcards  --no-getwork  
+`ccminer -a mtp16 -o  http://127.0.0.1:rpcport  -u rpcuser -p rpcpassword --coinbase-addr tecracoin-address  -d listofcards  --no-getwork`
 
 Example (RUN-TCR-MTP.cmd)
 
-ccminer -a mtp16 -o  http://127.0.0.1:8382  -u djm34 -p password --coinbase-addr TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL --no-getwork -d 0,1,2 -i 22
+`ccminer -a mtp16 -o  http://127.0.0.1:8382  -u tcrminer -p password --coinbase-addr TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL --no-getwork -d 0,1,2 -i 22`
 
 
 tecracoin wallet should also be run with "server=1" option and "rpcport,rpcuser,rpcpassword" should match those of tecracoin.conf
 
 
 *Instruction for mining on pool: 
-ccminer -a mtp16 -o stratum+tcp://pool.tecracoin.io:4553 -u TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL.worker   -p 0,strict,verbose,d=500 -i 20 
+`ccminer -a mtp16 -o stratum+tcp://pool.tecracoin.io:4553 -u TC4frBMpSm2PF2FuUNqJ3qicn4EHL59ejL.worker   -p 0,strict,verbose,d=500 -i 20`
 
 
 
