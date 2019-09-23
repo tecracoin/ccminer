@@ -248,7 +248,8 @@ Options:\n\
 			m7          m7 (crytonite) hash\n\
 			mjollnir    Mjollnircoin\n\
 			myr-gr      Myriad-Groestl\n\
-			mtp         Zcoin\n\
+			mtp-classic Zcoin\n\
+			mtp-tcr     Tecracoin\n\
 			neoscrypt   FeatherCoin, Phoenix, UFO...\n\
 			nist5       NIST5 (TalkCoin)\n\
 			penta       Pentablake hash (5x Blake 512)\n\
@@ -594,7 +595,7 @@ static void calc_network_diff(struct work *work)
 {
 	// sample for diff 43.281 : 1c05ea29
 	// todo: endian reversed on longpoll could be zr5 specific...
-	uint32_t nbits = (have_longpoll | opt_algo == ALGO_MTP )? work->data[18] : swab32(work->data[18]);
+	uint32_t nbits = (have_longpoll | (opt_algo == ALGO_MTP || opt_algo == ALGO_MTPTCR))? work->data[18] : swab32(work->data[18]);
 	if (opt_algo == ALGO_LBRY) nbits = swab32(work->data[26]);
 	if (opt_algo == ALGO_DECRED) nbits = work->data[29];
 	if (opt_algo == ALGO_SIA) nbits = work->data[11]; // unsure if correct
@@ -2301,7 +2302,7 @@ static bool workio_submit_work(struct workio_cmd *wc, CURL *curl)
 
 	/* submit solution to bitcoin via JSON-RPC */
 
-if (opt_algo!=ALGO_MTP) {
+if (opt_algo!=ALGO_MTP && opt_algo != ALGO_MTPTCR) {
 	while (!submit_upstream_work(curl, wc->u.work)) {
 		if (pooln != cur_pooln) {
 			applog(LOG_DEBUG, "work from pool %u discarded", pooln);
@@ -2726,7 +2727,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		memcpy(&work->data[12], sctx->job.coinbase, 32); // merkle_root
 		work->data[20] = 0x80000000;
 		if (opt_debug) applog_hex(work->data, 80);
-	} else if (opt_algo == ALGO_MTP)
+	} else if (opt_algo == ALGO_MTP || opt_algo == ALGO_MTPTCR)
 	{
 		for (i = 0; i < 8; i++)
 			work->data[9 + i] = le32dec((uint32_t *)merkle_root + i);
@@ -2787,6 +2788,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 
 	switch (opt_algo) {
 		case ALGO_MTP:
+		case ALGO_MTPTCR:
 				work_set_target_mtp(work, sctx->next_target, sctx->job.diff);
 			break;
 		case ALGO_JACKPOT:
@@ -2988,6 +2990,7 @@ static void *miner_thread(void *userdata)
 				wcmplen = 32;
 			break;
 			case ALGO_MTP:
+			case ALGO_MTPTCR:
 				wcmpoft = 0;
 				wcmplen = 84;
 				break;
@@ -3016,7 +3019,7 @@ static void *miner_thread(void *userdata)
 			if (sleeptime && opt_debug && !opt_quiet)
 				applog(LOG_DEBUG, "sleeptime: %u ms", sleeptime*100);
 
-			if (opt_algo==ALGO_MTP)
+			if (opt_algo==ALGO_MTP  || opt_algo == ALGO_MTPTCR)
 				nonceptr = (uint32_t*) (((char*)work.data) + 76);
 			else 
 				nonceptr = (uint32_t*)(((char*)work.data) + wcmplen);
@@ -3032,7 +3035,7 @@ static void *miner_thread(void *userdata)
 			}
 			regen = regen || extrajob;
 
-			if (regen || opt_algo == ALGO_MTP) {
+			if (regen || opt_algo == ALGO_MTP || opt_algo == ALGO_MTPTCR) {
 				
 
 				work_done = false;
@@ -3313,6 +3316,7 @@ printf("coming here opt_shares_limit firstwork_time=%d\n",firstwork_time);
 			case ALGO_DEEP:
 			case ALGO_HEAVY:
 			case ALGO_MTP:
+			case ALGO_MTPTCR:
 			case ALGO_LYRA2v2:
 			case ALGO_LYRA2Z:
 			case ALGO_S3:
@@ -3457,8 +3461,12 @@ printf("coming here opt_shares_limit firstwork_time=%d\n",firstwork_time);
 			rc = scanhash_mtp_solo(opt_n_threads,thr_id, &work, max_nonce, &hashes_done, &mtp,&stratum);
 		else 
 			rc = scanhash_mtp(opt_n_threads, thr_id, &work, max_nonce, &hashes_done, &mtp, &stratum);
-
 			break;
+
+		case ALGO_MTPTCR:
+				rc = scanhash_mtptcr(opt_n_threads, thr_id, &work, max_nonce, &hashes_done, &mtp, &stratum);
+			break;
+
 		case ALGO_LYRA2:
 			rc = scanhash_lyra2(thr_id, &work, max_nonce, &hashes_done);
 			break;
@@ -3660,7 +3668,7 @@ printf("coming here opt_shares_limit firstwork_time=%d\n",firstwork_time);
 
 			nonceptr[0] = work.nonces[0];
 
-			if (opt_algo == ALGO_MTP) {
+			if (opt_algo == ALGO_MTP || opt_algo == ALGO_MTPTCR) {
 				if (!submit_work_mtp(mythr, &work, &mtp))
 					break;
 			}
@@ -3690,7 +3698,7 @@ printf("coming here opt_shares_limit firstwork_time=%d\n",firstwork_time);
 					work.data[22] = 0;
 				}
 
-				if (opt_algo == ALGO_MTP) {
+				if (opt_algo == ALGO_MTP || opt_algo == ALGO_MTPTCR) {
 					if (!submit_work_mtp(mythr, &work, &mtp))
 						break;
 				}
@@ -3831,7 +3839,7 @@ longpoll_retry:
 			start_job_id = g_work.job_id ? strdup(g_work.job_id) : NULL;
 			if (have_gbt) 
 			{
-				if (opt_algo == ALGO_MTP) {
+				if (opt_algo == ALGO_MTP || opt_algo == ALGO_MTPTCR) {
 					 // rc = 1;
 //					sleep(5);
 //					val = json_rpc_longpoll(curl, lp_url, pool, req, &err);
@@ -4047,7 +4055,7 @@ wait_stratum_url:
 
 
 
-			if (opt_algo != ALGO_MTP) {
+			if (opt_algo != ALGO_MTP && opt_algo != ALGO_MTPTCR) {
 
 			if (!stratum_connect(&stratum, pool->url) ||
 			    !stratum_subscribe(&stratum) ||
@@ -4150,7 +4158,7 @@ wait_stratum_url:
 			s = NULL;
 		} else {
 			
-			if (opt_algo == ALGO_MTP)
+			if (opt_algo == ALGO_MTP || opt_algo == ALGO_MTPTCR)
 			{
 
 		//json_t *MyObject = json_object();

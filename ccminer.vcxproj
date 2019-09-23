@@ -311,6 +311,7 @@
       <MaxRegCount>76</MaxRegCount>
     </CudaCompile>
     <CudaCompile Include="cuda_mtp\cuda_mtp_forlib.cu" />
+    <CudaCompile Include="cuda_mtp\mtp-tcr.cu" />
     <CudaCompile Include="cuda_mtp\mtp.cu" />
     <CudaCompile Include="lyra2\cuda_lyra2Z.cu" />
     <CudaCompile Include="lyra2\lyra2Z.cu" />

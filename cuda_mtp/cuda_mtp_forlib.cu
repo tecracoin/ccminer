@@ -2,6 +2,7 @@
 * MTP
 * djm34 2017-2018
 * krnlx 2018
+* djm34 2019
 **/
 
 #include <stdio.h>
@@ -58,7 +59,6 @@ __constant__ uint4 Elements[1];
 #define gpu_thread 2
 #define gpu_shared 128
 #define kernel1_thread 64
-#define mtp_L 16
 #define TPB52 32
 #define TPB30 160
 #define TPB20 160
@@ -580,7 +580,7 @@ __global__  /* __launch_bounds__(TPB_MTP, 2) */
 void mtp_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const Type  * __restrict__ GBlock,
 	uint32_t * __restrict__ SmallestNonce)
 {
-
+	const int mtp_L = 64;
 	unsigned mask = 0xFFFFFFFF; //__activemask();
 
 	uint32_t event_thread = (blockDim.x * blockIdx.x + threadIdx.x); //thread / ThreadNumber;
@@ -660,10 +660,8 @@ void mtp_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const Ty
 		for (int i = 0; i < 4; ++i)
 			((BlakeType*)&YLocal)[i] = blakeFinall[i] ^ v.u2[i] ^ v.u2[i + 8];
 
-
-                const int zmtp_L = mtp_L;
-		
-                #pragma unroll zmtp_L
+		///////////////////////////////
+		#pragma unroll mtp_L
 		for (int j = 0; j < mtp_L; j++)
 		{
 			__shared__ __align__(128)  Type far [(TPB_MTP /Granularity2)][Granularity2][Granularity2 + SHR_OFF];
@@ -767,6 +765,197 @@ void mtp_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const Ty
 }
 
 
+__global__  /* __launch_bounds__(TPB_MTP, 2) */
+void mtptcr_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const Type  * __restrict__ GBlock,
+	uint32_t * __restrict__ SmallestNonce)
+{
+	const int mtp_L = 16;
+	unsigned mask = 0xFFFFFFFF; //__activemask();
+
+	uint32_t event_thread = (blockDim.x * blockIdx.x + threadIdx.x); //thread / ThreadNumber;
+	uint32_t NonceIterator = startNounce + event_thread;
+	int lane = lane_id() % (Granularity2);
+	int warp = threadIdx.x / (Granularity2);
+
+
+	{
+
+		uint2 YLocal[4];
+
+
+		const uint2 blakeIVl[8] =
+		{
+			{ 0xf3bcc908UL, 0x6a09e667UL },
+			{ 0x84caa73bUL, 0xbb67ae85UL },
+			{ 0xfe94f82bUL, 0x3c6ef372UL },
+			{ 0x5f1d36f1UL, 0xa54ff53aUL },
+			{ 0xade682d1UL, 0x510e527fUL },
+			{ 0x2b3e6c1fUL, 0x9b05688cUL },
+			{ 0xfb41bd6bUL, 0x1f83d9abUL },
+			{ 0x137e2179UL, 0x5be0cd19UL }
+		};
+
+		const uint2 blakeFinall[8] =
+		{
+			{ 0xf2bdc928UL, 0x6a09e667UL },
+			{ 0x84caa73bUL, 0xbb67ae85UL },
+			{ 0xfe94f82bUL, 0x3c6ef372UL },
+			{ 0x5f1d36f1UL, 0xa54ff53aUL },
+			{ 0xade682d1UL, 0x510e527fUL },
+			{ 0x2b3e6c1fUL, 0x9b05688cUL },
+			{ 0xfb41bd6bUL, 0x1f83d9abUL },
+			{ 0x137e2179UL, 0x5be0cd19UL }
+		};
+
+
+		united  v;
+		united m = { 0 };
+
+
+
+
+		uint4 *TheDat = &((uint4*)pData)[0];
+		for (int i = 0; i<5; i++)
+		{
+			asm volatile("prefetchu.L1 [%0];" : : "l"(&TheDat[i]));
+			m.u4[i] = __ldca(&TheDat[i]);
+		}
+		asm volatile("prefetchu.L1 [%0];" : : "l"(&Elements[0]));
+		m.u4[5] = __ldca(&Elements[0]);
+		m.u4[6].x = NonceIterator;
+
+		//////////////////////////////
+#pragma unroll
+		for (int i = 0; i < 8; ++i)
+			v.u2[i] = blakeFinall[i];
+
+
+		v.u2[8] = blakeIVl[0];
+		v.u2[9] = blakeIVl[1];
+		v.u2[10] = blakeIVl[2];
+		v.u2[11] = blakeIVl[3];
+		v.u2[12] = blakeIVl[4];
+		v.u2[12].x ^= 100;
+		v.u2[13] = blakeIVl[5];
+		v.u2[14] = ~blakeIVl[6];
+		v.u2[15] = blakeIVl[7];
+
+
+#pragma unroll 
+		for (int i = 0; i<12; i++)
+			ROUNDu(i);
+
+#pragma unroll
+		for (int i = 0; i < 4; ++i)
+			((BlakeType*)&YLocal)[i] = blakeFinall[i] ^ v.u2[i] ^ v.u2[i + 8];
+
+
+
+		///////////////////////////////
+		#pragma unroll mtp_L
+		for (int j = 0; j < mtp_L; j++)
+		{
+			__shared__ __align__(128)  Type far[(TPB_MTP / Granularity2)][Granularity2][Granularity2 + SHR_OFF];
+			uint32_t YIndex = (YLocal[0].x & 0x3FFFFF) * (Granularity);
+
+#pragma unroll
+			for (int t = 0; t< Gran1; t++)
+				m.u4[t] = ((uint4*)YLocal)[t];
+
+
+			BlakeType DataTmp[8] =
+			{
+				{ 0xf2bdc928UL, 0x6a09e667UL },
+				{ 0x84caa73bUL, 0xbb67ae85UL },
+				{ 0xfe94f82bUL, 0x3c6ef372UL },
+				{ 0x5f1d36f1UL, 0xa54ff53aUL },
+				{ 0xade682d1UL, 0x510e527fUL },
+				{ 0x2b3e6c1fUL, 0x9b05688cUL },
+				{ 0xfb41bd6bUL, 0x1f83d9abUL },
+				{ 0x137e2179UL, 0x5be0cd19UL }
+			};
+
+			uint32_t len = 0;
+
+
+
+#pragma unroll 8
+			for (int i = 0; i < 9; i++) {
+
+
+				bool last = (i == 8);
+
+				len += last ? 32 : 128;
+
+				uint32_t Index = lane + Granularity * argon_memcost * i; //i * (1 << 25); //// + YIndex;
+				int Index2 = lane + Granularity * i;
+
+#pragma unroll 				
+				for (int t = 0; t<Granularity2; t++) {
+					uint32_t IndexLocShuff = Index + __shfl_sync(mask, YIndex, t, Granularity2);
+					asm volatile("prefetchu.L1 [%0];" : : "l"(&GBlock[IndexLocShuff]));
+					far[warp][t][lane] = (Index2<64) ? __ldca(&GBlock[IndexLocShuff]) : Zeroing;
+				}
+
+
+				//				#if __CUDA_ARCH__ == 520
+				//					__syncwarp(mask);
+				//				#endif
+
+#pragma unroll
+				for (int t = Gran1; t < Granularity; t++)
+					m.u4[t] = far[warp][lane][t - Gran1];
+
+#pragma unroll
+				for (int t = 0; t < 8; t++)
+					v.u2[t] = DataTmp[t];
+
+
+
+				v.u2[8] = blakeIVl[0];
+				v.u2[9] = blakeIVl[1];
+				v.u2[10] = blakeIVl[2];
+				v.u2[11] = blakeIVl[3];
+				v.u2[12] = blakeIVl[4];
+				v.u2[12].x ^= len;
+				v.u2[13] = blakeIVl[5];
+				v.u2[14] = last ? ~blakeIVl[6] : blakeIVl[6];
+				v.u2[15] = blakeIVl[7];
+
+#pragma unroll 
+				for (int t = 0; t<12; t++)
+					ROUNDu(t);
+
+#pragma unroll 
+				for (int t = 0; t < 8; t++)
+					DataTmp[t] ^= v.u2[t] ^ v.u2[t + 8];
+
+				if (last) continue;
+
+#pragma unroll
+				for (int t = 0; t< Gran1; t++)
+					m.u4[t] = far[warp][lane][t + Gran3];
+
+			}
+
+#pragma unroll 
+			for (int t = 0; t<4; t++)
+				YLocal[t] = DataTmp[t];
+
+		}
+
+
+
+		if (((uint64_t*)&YLocal)[3] <= ((uint64_t*)pTarget)[3])
+		{
+			atomicMin(&SmallestNonce[0], NonceIterator);
+		}
+
+	}
+
+}
+
+
 
 __host__
 void mtp_cpu_init(int thr_id, uint32_t threads)
@@ -847,6 +1036,34 @@ uint32_t mtp_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce)
 
 	result = *h_MinNonces[thr_id];
 	return result; 
+
+}
+
+
+__host__
+uint32_t mtptcr_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce)
+{
+	//	cudaSetDevice(device_map[thr_id]);
+	uint32_t result = UINT32_MAX;
+	cudaMemset(d_MinNonces[thr_id], 0xff, sizeof(uint32_t));
+	//	int dev_id = device_map[thr_id % MAX_GPUS];
+
+	uint32_t tpb = TPB_MTP; //TPB52;
+	if (device_sm[device_map[thr_id]] == 750)
+		tpb = TPB_MTP75;
+
+	dim3 gridyloop(threads / tpb);
+	dim3 blockyloop(tpb);
+
+	//yloop_init <<<gridyloop, blockyloop>>>(thr_id, threads, startNounce, GYLocal[thr_id]);
+
+	mtptcr_yloop << < gridyloop, blockyloop >> >(thr_id, threads, startNounce, (Type*)HBlock[thr_id], d_MinNonces[thr_id]);
+
+
+	cudaMemcpy(h_MinNonces[thr_id], d_MinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost);
+
+	result = *h_MinNonces[thr_id];
+	return result;
 
 }
 
