@@ -1085,6 +1085,8 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 static bool submit_upstream_work_mtp(CURL *curl, struct work *work, struct mtp *mtp)
 {
 //	restart_threads();
+	const uint8_t MTPC_L = 64;
+	
 	char s[512];
 	struct pool_infos *pool = &pools[work->pooln];
 	json_t *val, *res, *reason;
@@ -1094,8 +1096,8 @@ static bool submit_upstream_work_mtp(CURL *curl, struct work *work, struct mtp *
 	uint32_t SizeMerkleRoot = 16;
 	uint32_t SizeReserved = 64;
 	uint32_t SizeMtpHash = 32;
-	uint32_t SizeBlockMTP = MTP_L *2*128*8;
-	uint32_t SizeProofMTP = MTP_L *3*353;
+	uint32_t SizeBlockMTP = MTPC_L *2*128*8;
+	uint32_t SizeProofMTP = MTPC_L *3*353;
 //printf("rpc user %s\n",rpc_user);
 	
 
@@ -1190,7 +1192,7 @@ static bool submit_upstream_work_mtp(CURL *curl, struct work *work, struct mtp *
 	}
 
 
-	for (uint32_t i = 0; i < MTP_L *2; i++)
+	for (uint32_t i = 0; i < MTPC_L *2; i++)
 	{
 		for (uint32_t j = 0; j < 1024; j++)
 			sprintf(&blockmtp_str[2*(j + 1024*i)], "%02x", ((uchar*)mtp->nBlockMTP[i])[j]);
@@ -1276,6 +1278,208 @@ static bool submit_upstream_work_mtp(CURL *curl, struct work *work, struct mtp *
 		free(mtphashvalue_str);
 	}
 //free(proof_str);
+
+
+	return true;
+}
+
+
+static bool submit_upstream_work_mtptcr(CURL *curl, struct work *work, struct mtp *mtp)
+{
+	//	restart_threads();
+	const uint8_t MTPC_L = 16;
+
+	char s[512];
+	struct pool_infos *pool = &pools[work->pooln];
+	json_t *val, *res, *reason;
+	bool stale_work = false;
+	int idnonce = 0;
+
+	uint32_t SizeMerkleRoot = 16;
+	uint32_t SizeReserved = 64;
+	uint32_t SizeMtpHash = 32;
+	uint32_t SizeBlockMTP = MTPC_L * 2 * 128 * 8;
+	uint32_t SizeProofMTP = MTPC_L * 3 * 353;
+	//printf("rpc user %s\n",rpc_user);
+
+
+
+
+
+	if (pool->type & POOL_STRATUM) {
+
+		uint32_t sent = 0;
+		uint32_t ntime, nonce;
+		char *ntimestr, *noncestr, *xnonce2str, *nvotestr;
+
+		le32enc(&ntime, work->data[17]);
+		le32enc(&nonce, work->data[19]);
+		char *sobid = (char*)malloc(9);
+		sprintf(sobid, "%s", work->job_id + 8);
+
+		json_t *MyObject = json_object();
+		json_t *json_arr = json_array();
+		json_object_set_new(MyObject, "id", json_integer(4));
+		json_object_set_new(MyObject, "method", json_string("mining.submit"));
+
+		json_array_append(json_arr, json_string(rpc_user));
+
+		int Err = 0;
+
+		uchar hexjob_id[4]; // = (uchar*)malloc(4);
+		hex2bin((uchar*)&hexjob_id, sobid, 4);
+		//		printf("the submitted job id = %s \n",sobid);
+		free(sobid);
+
+		json_array_append(json_arr, json_bytes((uchar*)&hexjob_id, 4));
+		json_array_append(json_arr, json_bytes(work->xnonce2, sizeof(uint64_t*)));
+		json_array_append(json_arr, json_bytes((uchar*)&ntime, sizeof(uint32_t)));
+		json_array_append(json_arr, json_bytes((uchar*)&nonce, sizeof(uint32_t)));
+		json_array_append(json_arr, json_bytes(mtp->MerkleRoot, SizeMerkleRoot));
+		json_array_append(json_arr, json_bytes((uchar*)mtp->nBlockMTP, SizeBlockMTP));
+		json_array_append(json_arr, json_bytes(mtp->nProofMTP, SizeProofMTP));
+
+		json_object_set_new(MyObject, "params", json_arr);
+
+		json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
+		bos_t *serialized = bos_serialize(MyObject, boserror);
+
+		stratum.sharediff = work->sharediff[0];
+
+		if (unlikely(!stratum_send_line_bos(&stratum, serialized))) {
+			applog(LOG_ERR, "submit_upstream_work stratum_send_line failed");
+			free(boserror);
+			json_decref(MyObject);
+			bos_free(serialized);
+			return false;
+		}
+		free(boserror);
+		json_decref(MyObject);
+		bos_free(serialized);
+		//		stratum_recv_line_compact(&stratum);
+
+		//		free(mtp);
+		return true;
+
+	}
+	else if (work->txs) { /* gbt */
+
+
+
+
+		int data_size = 84;
+		//	int data_size = 128;
+		int adata_sz = data_size / sizeof(uint32_t);
+
+		char *proofmtp_str = (char*)malloc(2 * SizeProofMTP + 1);
+		char *blockmtp_str = (char*)malloc(2 * SizeBlockMTP + 1);
+		char *merkleroot_str = (char*)malloc(2 * SizeMerkleRoot + 1);
+		char *mtphashvalue_str = (char*)malloc(2 * SizeMtpHash + 1);
+		char *mtpreserved_str = (char*)malloc(2 * SizeReserved + 1);
+
+		for (uint32_t i = 0; i < SizeMerkleRoot; i++)
+		{
+			sprintf(&merkleroot_str[2 * i], "%02x", mtp->MerkleRoot[i]);
+		}
+
+		for (uint32_t i = 0; i < SizeMtpHash; i++)
+		{
+			sprintf(&mtphashvalue_str[2 * i], "%02x", mtp->mtpHashValue[i]);
+		}
+
+
+		for (uint32_t i = 0; i < SizeReserved; i++)
+		{
+			sprintf(&mtpreserved_str[2 * i], "%02x", 0);
+		}
+
+
+		for (uint32_t i = 0; i < MTPC_L * 2; i++)
+		{
+			for (uint32_t j = 0; j < 1024; j++)
+				sprintf(&blockmtp_str[2 * (j + 1024 * i)], "%02x", ((uchar*)mtp->nBlockMTP[i])[j]);
+		}
+
+
+
+		for (int i = 0; i< SizeProofMTP; i++)
+			sprintf(&proofmtp_str[2 * i], "%02x", mtp->nProofMTP[i]);
+
+
+
+		char data_str[2 * sizeof(work->data) + 1];
+		char data_check[2 * sizeof(work->data) + 1];
+		char *req;
+
+		for (int i = 0; i < ARRAY_SIZE(work->data); i++)
+			le32enc(work->data + i, work->data[i]);
+
+		dbin2hex(data_str, (unsigned char *)work->data, 84);
+
+		for (int i = 0; i<84; i++)
+			sprintf(&data_check[2 * i], "%02x", ((uint8_t*)work->data)[i]);
+
+
+		if (work->workid) {
+			char *params;
+			val = json_object();
+			json_object_set_new(val, "workid", json_string(work->workid));
+			params = json_dumps(val, 0);
+			json_decref(val);
+
+			req = (char*)malloc(128 + 2 * 84 + strlen(work->txs) + strlen(params) + strlen(mtphashvalue_str)
+				+ strlen(mtpreserved_str) + strlen(merkleroot_str) + strlen(proofmtp_str) + strlen(blockmtp_str));
+			sprintf(req,
+				"{\"method\": \"submitblock\", \"params\": [\"%s%s%s%s%s%s%s\", %s], \"id\":4}\r\n",
+				data_str, mtphashvalue_str, mtpreserved_str, merkleroot_str, blockmtp_str, proofmtp_str, work->txs, params);
+			free(params);
+
+		}
+		else {
+			req = (char*)malloc(128 + 2 * 84 + strlen(work->txs) + strlen(mtphashvalue_str) + strlen(mtpreserved_str)
+				+ strlen(merkleroot_str) + strlen(proofmtp_str) + strlen(blockmtp_str));
+			sprintf(req,
+				"{\"method\": \"submitblock\", \"params\": [\"%s%s%s%s%s%s%s\"], \"id\":4}\r\n",
+				data_str, mtphashvalue_str, mtpreserved_str, merkleroot_str, blockmtp_str, proofmtp_str, work->txs);
+		}
+
+		//		val = json_rpc_call(curl, rpc_url, rpc_userpass, req, NULL, 0);
+		//		printf("work->txs=%s\n",work->txs);
+		val = json_rpc_call_pool(curl, pool, req, false, false, NULL);
+		//		printf("not submitting block\n");
+		free(req);
+		if (unlikely(!val)) {
+			applog(LOG_ERR, "submit_upstream_work json_rpc_call failed");
+			return false;
+		}
+
+		res = json_object_get(val, "result");
+		if (json_is_object(res)) {
+			char *res_str;
+			bool sumres = false;
+			void *iter = json_object_iter(res);
+			while (iter) {
+				if (json_is_null(json_object_iter_value(iter))) {
+					sumres = true;
+					break;
+				}
+				iter = json_object_iter_next(res, iter);
+			}
+			res_str = json_dumps(res, 0);
+			share_result(sumres, work->pooln, work->sharediff[0], res_str);
+			free(res_str);
+		}
+		else
+			share_result(json_is_null(res), work->pooln, work->sharediff[0], json_string_value(res));
+
+		json_decref(val);
+		free(proofmtp_str);
+		free(blockmtp_str);
+		free(merkleroot_str);
+		free(mtpreserved_str);
+		free(mtphashvalue_str);
+	}
+	//free(proof_str);
 
 
 	return true;
@@ -2302,42 +2506,61 @@ static bool workio_submit_work(struct workio_cmd *wc, CURL *curl)
 
 	/* submit solution to bitcoin via JSON-RPC */
 
-if (opt_algo!=ALGO_MTP && opt_algo != ALGO_MTPTCR) {
-	while (!submit_upstream_work(curl, wc->u.work)) {
-		if (pooln != cur_pooln) {
-			applog(LOG_DEBUG, "work from pool %u discarded", pooln);
-			return true;
-		}
-		if (unlikely((opt_retries >= 0) && (++failures > opt_retries))) {
-			applog(LOG_ERR, "...terminating workio thread");
-			return false;
-		}
-		/* pause, then restart work-request loop */
-		if (!opt_benchmark) {
-			applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
-			return false;}
-//		sleep(opt_fail_pause);
-	}
-}
-else {
-	while (!submit_upstream_work_mtp(curl, wc->u.work, wc->t.mtp)) {
-		if (pooln != cur_pooln) {
-			applog(LOG_DEBUG, "work from pool %u discarded", pooln);
+	if (opt_algo == ALGO_MTP) {
+		while (!submit_upstream_work_mtp(curl, wc->u.work, wc->t.mtp)) {
+			if (pooln != cur_pooln) {
+				applog(LOG_DEBUG, "work from pool %u discarded", pooln);
 			
-			return true;
+				return true;
+			}
+			if (unlikely((opt_retries >= 0) && (++failures > opt_retries))) {
+				applog(LOG_ERR, "...terminating workio thread");
+				return false;
+			}
+			if (!opt_benchmark) {
+				applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
+				return false;
+			}
+			sleep(opt_fail_pause)	;
 		}
-		if (unlikely((opt_retries >= 0) && (++failures > opt_retries))) {
-			applog(LOG_ERR, "...terminating workio thread");
-			return false;
-		}
-		if (!opt_benchmark) {
-			applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
-			return false;
-		}
-		sleep(opt_fail_pause)	;
-	}
 
-}
+	} else if (opt_algo == ALGO_MTPTCR) {
+		while (!submit_upstream_work_mtptcr(curl, wc->u.work, wc->t.mtp)) {
+			if (pooln != cur_pooln) {
+				applog(LOG_DEBUG, "work from pool %u discarded", pooln);
+
+				return true;
+			}
+			if (unlikely((opt_retries >= 0) && (++failures > opt_retries))) {
+				applog(LOG_ERR, "...terminating workio thread");
+				return false;
+			}
+			if (!opt_benchmark) {
+				applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
+				return false;
+			}
+			sleep(opt_fail_pause);
+		}
+
+	}
+	else {
+		while (!submit_upstream_work(curl, wc->u.work)) {
+			if (pooln != cur_pooln) {
+				applog(LOG_DEBUG, "work from pool %u discarded", pooln);
+				return true;
+			}
+			if (unlikely((opt_retries >= 0) && (++failures > opt_retries))) {
+				applog(LOG_ERR, "...terminating workio thread");
+				return false;
+			}
+			/* pause, then restart work-request loop */
+			if (!opt_benchmark) {
+				applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
+				return false;
+			}
+			//		sleep(opt_fail_pause);
+		}
+	}
 	return true;
 }
 

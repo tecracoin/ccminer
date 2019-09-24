@@ -27,7 +27,7 @@ void get_tree(int thr_id, uint8_t* d);
 #define HASHLEN 32
 #define SALTLEN 16
 #define PWD "password"
-//#define MTP_L 64
+static const uint8_t MTP_L = 16;
 
 static bool init[MAX_GPUS] = { 0 };
 static __thread uint32_t throughput = 0;
@@ -97,7 +97,7 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 //		cudaProfilerStop();
 		init[thr_id] = true;
 
-
+ 
 	}
 
 	uint32_t _ALIGN(128) endiandata[20];
@@ -173,7 +173,7 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 			blockS nBlockMTP[MTP_L *2] = {0};
 			unsigned char nProofMTP[MTP_L * 3 * 353 ] = {0};
 
-			uint32_t is_sol = mtp_solver(thr_id,foundNonce, &instance[thr_id], nBlockMTP,nProofMTP, TheMerkleRoot[thr_id], mtpHashValue, *ordered_tree[thr_id], endiandata,TheUint256Target[0]);
+			uint32_t is_sol = mtptcr_solver(thr_id,foundNonce, &instance[thr_id], nBlockMTP,nProofMTP, TheMerkleRoot[thr_id], mtpHashValue, *ordered_tree[thr_id], endiandata,TheUint256Target[0]);
 
 			if (is_sol==1 /*&& fulltest(vhash64, ptarget)*/) {
 

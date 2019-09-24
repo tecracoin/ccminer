@@ -82,7 +82,7 @@ enum {
 };
 #endif
 
-#define MTP_L 16
+#define MTP_Lmax 64
 
 typedef unsigned char uchar;
 
@@ -730,8 +730,8 @@ struct mtp {
 	int MTPVersion;
 	unsigned char MerkleRoot[16];
 	unsigned char mtpHashValue[32];
-	uint64_t nBlockMTP[MTP_L*2][128];
-	unsigned char nProofMTP[MTP_L *3* 353]; 
+	uint64_t nBlockMTP[MTP_Lmax *2][128];
+	unsigned char nProofMTP[MTP_Lmax *3* 353];
 };
 
 

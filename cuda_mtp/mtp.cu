@@ -26,7 +26,8 @@ extern void mtp_i_cpu2(int thr_id, uint32_t *block_header);
 void get_tree(int thr_id, uint8_t* d);
 #define HASHLEN 32
 #define SALTLEN 16
-#define PWD "password"
+#define PWD "password" 
+static const uint8_t MTP_L = 64;
 //#define MTP_L 64
 
 static bool init[MAX_GPUS] = { 0 };
