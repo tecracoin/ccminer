@@ -6,7 +6,7 @@ donation addresses:
 
 	BTC: 1NENYmxwZGHsKFmyjTc5WferTn5VTFb7Ze
 
-	TCR: TTVqYWvuzGLSLkUqUuQ4SvE8o5MnyfS6D9
+	TCR: TPkxM1Aw872FL9gs4udCDzy5hAG7M7sVSE
 
 Based on Christian Buchner's &amp; Christian H.'s CUDA project and tpruvot@github.
 
