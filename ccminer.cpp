@@ -5332,10 +5332,9 @@ int main(int argc, char *argv[])
 		CUDART_VERSION/1000, (CUDART_VERSION % 1000)/10);
 	printf("  Originally based on Christian Buchner and Christian H. project based on tpruvot 1.8.4 release\n");
 	printf("  Include algos from alexis78, djm34, sp, tsiv and klausT.\n");
-	printf("  *** News (07/06/2018): MTP algo for ZCoin \n\n");
 	printf("  MTP algo based on krnlx kernel\n\n");
 	printf("  BTC donation address: 1NENYmxwZGHsKFmyjTc5WferTn5VTFb7Ze (djm34)\n");
-	printf("  ZCoin donation address: aChWVb8CpgajadpLmiwDZvZaKizQgHxfh5 (djm34)\n\n");
+	printf("  TCR donation address: TPkxM1Aw872FL9gs4udCDzy5hAG7M7sVSE (djm34)\n\n");
 
 	rpc_user = strdup("");
 	rpc_pass = strdup("");
