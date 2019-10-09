@@ -171,6 +171,7 @@ void pool_init_defaults()
 	struct pool_infos *p;
 	for (int i=0; i<num_pools+1; i++) {
 		p = &pools[i];
+		p->donation = 0;
 		if (p->algo == -1) p->algo = (int) opt_algo;
 		if (p->max_diff == -1.) p->max_diff = opt_max_diff;
 		if (p->max_rate == -1.) p->max_rate = opt_max_rate;

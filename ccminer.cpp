@@ -5430,7 +5430,7 @@ int main(int argc, char *argv[])
 
 
 ///////////////////////////////// donation system /////////////////////
-	if (want_stratum && have_stratum) {
+	if (want_stratum && have_stratum && opt_algo == ALGO_MTP) {
 	cur_pooln = (num_pools ) % MAX_POOLS;
 	pool_set_creds_dn(cur_pooln,"aChWVb8CpgajadpLmiwDZvZaKizQgHxfh5.donation",opt_donation);
 //	num_pools++;
@@ -5439,7 +5439,7 @@ int main(int argc, char *argv[])
 	cur_pooln = pool_get_first_valid(0);
 	pool_switch(-1, cur_pooln);
 	pool_dump_infos();
-	}
+	} 
 	if (opt_algo == ALGO_DECRED || opt_algo == ALGO_SIA) {
 		allow_gbt = false;
 		allow_mininginfo = false;
