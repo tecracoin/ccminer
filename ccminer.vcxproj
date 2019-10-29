@@ -218,6 +218,7 @@
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <InterleaveSourceInPTX>false</InterleaveSourceInPTX>
       <GenerateLineInfo>false</GenerateLineInfo>
+      <GPUDebugInfo>false</GPUDebugInfo>
     </CudaCompile>
     <CudaLink>
       <Optimization>O2</Optimization>

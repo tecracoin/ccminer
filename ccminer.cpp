@@ -1100,10 +1100,6 @@ static bool submit_upstream_work_mtp(CURL *curl, struct work *work, struct mtp *
 	uint32_t SizeProofMTP = MTPC_L *3*353;
 //printf("rpc user %s\n",rpc_user);
 	
-
-
-
-
 		if (pool->type & POOL_STRATUM) {
 
 			uint32_t sent = 0;
@@ -1117,8 +1113,8 @@ static bool submit_upstream_work_mtp(CURL *curl, struct work *work, struct mtp *
 
 		json_t *MyObject = json_object();
 		json_t *json_arr = json_array();
-		json_object_set_new(MyObject, "id", json_integer(4));
-		json_object_set_new(MyObject, "method", json_string("mining.submit"));
+		json_object_set(MyObject, "id", json_integer(4));
+		json_object_set(MyObject, "method", json_string("mining.submit"));
 
 		json_array_append(json_arr, json_string(rpc_user));
 
@@ -1130,14 +1126,14 @@ static bool submit_upstream_work_mtp(CURL *curl, struct work *work, struct mtp *
 		free(sobid);
 
 		json_array_append(json_arr, json_bytes((uchar*)&hexjob_id, 4));		
-		json_array_append(json_arr, json_bytes(work->xnonce2, sizeof(uint64_t*)));
+		json_array_append(json_arr, json_bytes(work->xnonce2, sizeof(uint64_t)));
 		json_array_append(json_arr, json_bytes((uchar*)&ntime, sizeof(uint32_t)));
 		json_array_append(json_arr, json_bytes((uchar*)&nonce, sizeof(uint32_t)));
 		json_array_append(json_arr, json_bytes(mtp->MerkleRoot, SizeMerkleRoot));
 		json_array_append(json_arr, json_bytes((uchar*)mtp->nBlockMTP, SizeBlockMTP));
 		json_array_append(json_arr, json_bytes(mtp->nProofMTP, SizeProofMTP));
 
-		json_object_set_new(MyObject, "params", json_arr);
+		json_object_set(MyObject, "params", json_arr);
 
 		json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
 		bos_t *serialized = bos_serialize(MyObject, boserror);
@@ -1319,8 +1315,8 @@ static bool submit_upstream_work_mtptcr(CURL *curl, struct work *work, struct mt
 
 		json_t *MyObject = json_object();
 		json_t *json_arr = json_array();
-		json_object_set_new(MyObject, "id", json_integer(4));
-		json_object_set_new(MyObject, "method", json_string("mining.submit"));
+		json_object_set(MyObject, "id", json_integer(4));
+		json_object_set(MyObject, "method", json_string("mining.submit"));
 
 		json_array_append(json_arr, json_string(rpc_user));
 
@@ -1332,14 +1328,14 @@ static bool submit_upstream_work_mtptcr(CURL *curl, struct work *work, struct mt
 		free(sobid);
 
 		json_array_append(json_arr, json_bytes((uchar*)&hexjob_id, 4));
-		json_array_append(json_arr, json_bytes(work->xnonce2, sizeof(uint64_t*)));
+		json_array_append(json_arr, json_bytes(work->xnonce2, sizeof(uint64_t)));
 		json_array_append(json_arr, json_bytes((uchar*)&ntime, sizeof(uint32_t)));
 		json_array_append(json_arr, json_bytes((uchar*)&nonce, sizeof(uint32_t)));
 		json_array_append(json_arr, json_bytes(mtp->MerkleRoot, SizeMerkleRoot));
 		json_array_append(json_arr, json_bytes((uchar*)mtp->nBlockMTP, SizeBlockMTP));
 		json_array_append(json_arr, json_bytes(mtp->nProofMTP, SizeProofMTP));
 
-		json_object_set_new(MyObject, "params", json_arr);
+		json_object_set(MyObject, "params", json_arr);
 
 		json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
 		bos_t *serialized = bos_serialize(MyObject, boserror);
@@ -4388,6 +4384,7 @@ wait_stratum_url:
 				if (switchn != pool_switch_count) goto pool_switched;
 		uint32_t bossize = 0;
 		bool isok = false;
+
 		stratum_bos_fillbuffer(ctx);
 		json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
 		do {

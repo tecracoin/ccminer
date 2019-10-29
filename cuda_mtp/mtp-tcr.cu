@@ -94,6 +94,7 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 		gpulog(LOG_INFO, thr_id, "Intensity set to %g, %u cuda threads number of multiproc %d", 
 		throughput2intensity(throughput), throughput, props.multiProcessorCount);
 		mtp_cpu_init(thr_id, throughput);
+		CUDA_SAFE_CALL(cudaMallocHost(&dx[thr_id], sizeof(uint2) * 2 * 1048576 * 4));
 //		cudaProfilerStop();
 		init[thr_id] = true;
 
@@ -111,16 +112,13 @@ if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->x
 //printf("reinit mtp gpu work->data[16]=%08x JobId = %08x \n", work->data[16], JobId[thr_id]);
 
 	if (JobId[thr_id] != 0) {
-
 		free_memory(&context[thr_id], (unsigned char *)instance[thr_id].memory, instance[thr_id].memory_blocks, sizeof(block));
 		ordered_tree[thr_id]->Destructor();
-		cudaFreeHost(dx[thr_id]);
-
-		delete  ordered_tree[thr_id];
-
+//		CUDA_SAFE_CALL(cudaFreeHost(dx[thr_id]));
 	}
-	cudaMallocHost(&dx[thr_id], sizeof(uint2) * 2 * 1048576 * 4);
- 
+//	printf("allocate memory for merkletree stuff \n");
+//	CUDA_SAFE_CALL(cudaMallocHost(&dx[thr_id], sizeof(uint2) * 2 * 1048576 * 4));
+//	printf("allocate memory for merkletree stuff end\n");
 //	cudaProfilerStop();
 context[thr_id] = init_argon2d_param((const char*)endiandata);
 
@@ -156,13 +154,13 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 }
 
 
-		pdata[19] = first_nonce;
+		pdata[19] = first_nonce; 
 
 		uint32_t foundNonce;
 
 		*hashes_done = pdata[19] - first_nonce + throughput;
 		foundNonce = mtptcr_cpu_hash_32(thr_id, throughput, pdata[19]);
-
+		cudaDeviceSynchronize();
 		uint32_t _ALIGN(64) vhash64[8];
 		if (foundNonce != UINT32_MAX)
 		{
@@ -174,7 +172,7 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 			unsigned char nProofMTP[MTP_L * 3 * 353 ] = {0};
 
 			uint32_t is_sol = mtptcr_solver(thr_id,foundNonce, &instance[thr_id], nBlockMTP,nProofMTP, TheMerkleRoot[thr_id], mtpHashValue, *ordered_tree[thr_id], endiandata,TheUint256Target[0]);
-
+			
 			if (is_sol==1 /*&& fulltest(vhash64, ptarget)*/) {
 
 				int res = 1;

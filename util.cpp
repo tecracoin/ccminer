@@ -1111,13 +1111,14 @@ static bool send_line_bos(curl_socket_t sock, bos_t *s2)
 
 		FD_ZERO(&wd);
 		FD_SET(sock, &wd);
-		if (select((int)(sock + 1), NULL, &wd, NULL, &timeout) < 1)
+		if (select((int)(sock + 1), NULL, &wd, NULL, &timeout) < 1) {
 			return false;
-
+		}
 		n = send(sock, (char*)s2->data + sent, len, 0);
 		if (n < 0) {
-			if (!socket_blocks())
+			if (!socket_blocks()) {
 				return false;
+			}
 			n = 0;
 		}
 		sent += n;
@@ -1375,6 +1376,7 @@ json_t* recode_message(json_t *MyObject2)
 
 void stratum_bos_fillbuffer(struct stratum_ctx *sctx)
 {
+
 	int timeout = 300; //opt_timeout;
 	bool ret = true;
 	time_t rstart = time(NULL);
@@ -1616,32 +1618,11 @@ bool    stratum_recv_line_compact(struct stratum_ctx *sctx)
 
 	bool ret = true;
 	time_t rstart = time(NULL);
-	
+
 			stratum_bos_fillbuffer(sctx);
 			// this should empty the buffer whatever its content
 
 			json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
-/*
-			do {
-				if (bossize > 100000000) break;
-				if (bos_sizeof(sctx->sockbuf + bossize) == 0) break;
-				MyObject2 = bos_deserialize(sctx->sockbuf + bossize, boserror);
-				bossize += bos_sizeof(sctx->sockbuf + bossize);
-
-				MyObject = recode_message(MyObject2);
-
-				isok = stratum_handle_method_bos_json(sctx, MyObject);
-				json_decref(MyObject2);
-				json_decref(MyObject);
-				if (bossize>sctx->sockbuf_bossize) {
-					Nmissing_packet++;
-					stratum_bos_fillbuffer(sctx);
-					printf("stratum_recv_line_compact missing packet\n");
-					if (Nmissing_packet>5) {ret=false; goto out;}
-				}
-			printf("coming in the loop\n");
-			} while (bossize != sctx->sockbuf_bossize);
-*/
 
 			do {
 				if (bos_sizeof(sctx->sockbuf) > 100000) break;
@@ -2238,6 +2219,7 @@ bool stratum_authorize_bos(struct stratum_ctx *sctx, const char *user, const cha
 		applog(LOG_ERR, "Stratum authentication failed");
 		goto out;
 	}
+
 	while (1) {
 		if (!stratum_recv_line_compact(sctx))
 			break;
