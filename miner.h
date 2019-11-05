@@ -295,6 +295,7 @@ struct work;
 extern int scanhash_mtp(int nthreads, int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, struct mtp* mtp, struct stratum_ctx *sctx);
 extern int scanhash_mtp_solo(int nthreads, int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, struct mtp* mtp, struct stratum_ctx *sctx);
 extern int scanhash_mtptcr(int nthreads, int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, struct mtp* mtp, struct stratum_ctx *sctx);
+extern int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, struct mtp* mtp, struct stratum_ctx *sctx);
 extern int scanhash_blake256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, int8_t blakerounds);
 extern int scanhash_blake2s(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_bmw(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);

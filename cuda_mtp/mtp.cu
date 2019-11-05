@@ -302,7 +302,7 @@ extern "C" int scanhash_mtp_solo(int nthreads, int thr_id, struct work* work, ui
 	for (int k = 0; k < 20; k++)
 		endiandata[k] = pdata[k];
 
-	if (JobId[thr_id] != work->data[17] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0]) {
+	if (JobId[thr_id] != work->data[17] ) {
 
 		if (JobId[thr_id] != 0) {
 
@@ -426,10 +426,7 @@ extern "C" int scanhash_mtp_solo(int nthreads, int thr_id, struct work* work, ui
 	gpulog(LOG_INFO, thr_id, "%s: %.1f Kh/s nonce %08x ", device_name[device_map[thr_id]], hashrate / 1000., pdata[19]);
 
 		pdata[19] += throughput;
-		if (pdata[19] >= real_maxnonce) {
-			gpulog(LOG_WARNING, thr_id, "OUT OF NONCE %x >= %x incrementing extra nonce at next chance", pdata[19], real_maxnonce);
-			sctx->job.IncXtra = true;
-		}
+
 	} while (!work_restart[thr_id].restart && pdata[19]<real_maxnonce /*&& pdata[19]<(first_nonce+128*throughput)*/);
 
 TheEnd:
