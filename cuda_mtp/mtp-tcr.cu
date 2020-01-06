@@ -108,6 +108,8 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 		endiandata[k] = pdata[k];
 	}
 //printf(" \n ");
+
+
 if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0]) {
 //printf("reinit mtp gpu work->data[16]=%08x JobId = %08x \n", work->data[16], JobId[thr_id]);
 
@@ -153,6 +155,9 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 	root.resize(0);
 }
 
+	if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0])
+		return 0; // if work has changed stop and go back to the initialization
+
 
 		pdata[19] = first_nonce; 
 
@@ -161,6 +166,11 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 		*hashes_done = pdata[19] - first_nonce + throughput;
 		foundNonce = mtptcr_cpu_hash_32(thr_id, throughput, pdata[19]);
 		cudaDeviceSynchronize();
+
+		if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0])
+			return 0; // if work has changed stop and go back to the initialization
+
+
 		uint32_t _ALIGN(64) vhash64[8];
 		if (foundNonce != UINT32_MAX)
 		{
@@ -172,6 +182,11 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 			unsigned char nProofMTP[MTP_L * 3 * 353 ] = {0};
 
 			uint32_t is_sol = mtptcr_solver(thr_id,foundNonce, &instance[thr_id], nBlockMTP,nProofMTP, TheMerkleRoot[thr_id], mtpHashValue, *ordered_tree[thr_id], endiandata,TheUint256Target[0]);
+
+			if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0])
+				return 0; // if work has changed stop and go back to the initialization
+
+
 			
 			if (is_sol==1 /*&& fulltest(vhash64, ptarget)*/) {
 
@@ -204,23 +219,15 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 			}
 		}
 
-//		work_set_target_ratio(work, vhash64);
-		
-/*
-		if ((uint64_t)throughput + pdata[19] >= max_nonce) {
-			pdata[19] = max_nonce;
-			break;
-		}
-*/
+
 		pdata[19] += throughput;
 		if (pdata[19] >= real_maxnonce) {
 			gpulog(LOG_WARNING, thr_id, "OUT OF NONCE %x >= %x incrementing extra nonce at next chance", pdata[19], real_maxnonce);
 			sctx->job.IncXtra = true;
 		}
-//	}   while (!work_restart[thr_id].restart && pdata[19]<real_maxnonce && JobId==work->data[17] /*&& pdata[19]<(first_nonce+128*throughput)*/);
 
 TheEnd:
-//		sctx->job.IncXtra = true;
+
 		*hashes_done = pdata[19] - first_nonce;
 
 	return 0;
