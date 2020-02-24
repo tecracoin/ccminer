@@ -6,7 +6,10 @@
 #include <unistd.h>
 #include "miner.h"
 #include "cuda_helper.h"
-#include "cuda_profiler_api.h"
+//#include "cuda_profiler_api.h"
+
+
+
 #define memcost 4*1024*1024
 
 extern void mtp_cpu_init(int thr_id, uint32_t threads);
@@ -40,10 +43,11 @@ static  unsigned char TheMerkleRoot[MAX_GPUS][16];
 static  argon2_context context[MAX_GPUS];
 static argon2_instance_t instance[MAX_GPUS];
 static uint8_t *dx[MAX_GPUS];
-//static pthread_mutex_t work_lock = PTHREAD_MUTEX_INITIALIZER;
-//static pthread_barrier_t barrier;
-//static pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
-
+/*
+static pthread_mutex_t work_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_barrier_t barrier;
+static pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
+*/
 //static std::vector<uint8_t*> MEM[MAX_GPUS];
 
 extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, struct mtp* mtp, struct stratum_ctx *sctx)
@@ -74,13 +78,10 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 		cudaSetDevice(dev_id);
 		
 		cudaDeviceReset();
-		cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
 
-//		cudaSetDeviceFlags(cudaDeviceScheduleYield);
-//		cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte); 
-		
-//		intensity = cuda_default_throughput(thr_id, intensity); // 18=256*256*4;	
-
+		CUDA_SAFE_CALL(cudaSetDeviceFlags(cudaDeviceScheduleYield));
+//		CUDA_SAFE_CALL(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
+//		cudaDeviceSynchronize();
 		cudaDeviceProp props;
 		cudaGetDeviceProperties(&props, dev_id);
 		int intensity = 20;
@@ -93,7 +94,9 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 //		cudaMallocHost(&dx[thr_id], sizeof(uint2) * 2 * 1048576 * 4);
 		gpulog(LOG_INFO, thr_id, "Intensity set to %g, %u cuda threads number of multiproc %d", 
 		throughput2intensity(throughput), throughput, props.multiProcessorCount);
+// gpu memory allocation
 		mtp_cpu_init(thr_id, throughput);
+
 		CUDA_SAFE_CALL(cudaMallocHost(&dx[thr_id], sizeof(uint2) * 2 * 1048576 * 4));
 //		cudaProfilerStop();
 		init[thr_id] = true;

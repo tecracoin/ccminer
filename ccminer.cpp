@@ -122,7 +122,8 @@ static const bool opt_time = true;
 volatile enum sha_algos opt_algo = ALGO_AUTO;
 int opt_n_threads = 0;
 int gpu_threads = 1;
-int64_t opt_affinity = -1L;
+//int64_t opt_affinity = 4096;
+int64_t opt_affinity = -1;
 int opt_priority = 0;
 static double opt_difficulty = 1.;
 bool opt_extranonce = true;
@@ -3601,18 +3602,21 @@ static void *miner_thread(void *userdata)
 	}
 
 	/* Cpu thread affinity */
+
 	if (num_cpus > 1) {
+/*
 		if (opt_affinity == -1L && opt_n_threads > 1) {
-			if (opt_debug)
+//			if (opt_debug)
 				applog(LOG_DEBUG, "Binding thread %d to cpu %d (mask %x)", thr_id,
 						thr_id % num_cpus, (1UL << (thr_id % num_cpus)));
 			affine_to_cpu_mask(thr_id, 1 << (thr_id % num_cpus));
 		} else if (opt_affinity != -1L) {
-			if (opt_debug)
-				applog(LOG_DEBUG, "Binding thread %d to cpu mask %lx", thr_id,
+//			if (opt_debug)
+				applog(LOG_DEBUG, "Test Binding thread %d to cpu mask %lx", thr_id,
 						(long) opt_affinity);
 			affine_to_cpu_mask(thr_id, (unsigned long) opt_affinity);
 		}
+*/
 	}
 
 	gpu_led_off(dev_id);
@@ -5534,6 +5538,7 @@ void parse_arg(int key, char *arg)
 			char * pch = strtok (arg,",");
 			opt_n_threads = 0;
 			while (pch != NULL && opt_n_threads < MAX_GPUS) {
+//				if (pch[0] >= '0' && pch[0] <= '9' && pch[1] == '\0')
 				if (pch[0] >= '0' && pch[0] <= '9' && pch[1] == '\0')
 				{
 					if (atoi(pch) < ngpus)
@@ -5545,6 +5550,7 @@ void parse_arg(int key, char *arg)
 				} else {
 					int device; // = cuda_finddevice(pch);
 					if (pch[2] == '\0') {
+						printf(" pch val %d \n",atoi(pch));
 						device = atoi(pch);
 					}
 					else {
@@ -6021,7 +6027,7 @@ int main(int argc, char *argv[])
 	if (!thr->q)
 		return EXIT_CODE_SW_INIT_ERROR;
 
-	if (pthread_create(&thr->pth, NULL, workio_thread, thr)) {
+	if (unlikely(pthread_create(&thr->pth, NULL, workio_thread, thr))) {
 		applog(LOG_ERR, "workio thread create failed");
 		return EXIT_CODE_SW_INIT_ERROR;
 	}

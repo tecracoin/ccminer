@@ -29,17 +29,17 @@
 
 
 #include "lyra2/cuda_lyra2_vectors.h"
-static uint32_t *h_MinNonces[16]; // this need to get fixed as the rest of that routine
-static uint32_t *d_MinNonces[16];
+static uint32_t *h_MinNonces[MAX_GPUS]; // this need to get fixed as the rest of that routine
+static uint32_t *d_MinNonces[MAX_GPUS];
 
 __constant__ uint32_t pTarget[8];
 __constant__ uint32_t pData[20]; // truncated data
 __constant__ uint4 Elements[1];
 
-/*__constant__*/ uint4 * HBlock[16];
+/*__constant__*/ uint4 * HBlock[MAX_GPUS];
 //uint8 * GYLocal[16];
-/*__device__*/ uint32_t *Header[16];
-/*__device__*/ uint2 *buffer_a[16];
+/*__device__*/ uint32_t *Header[MAX_GPUS];
+/*__device__*/ uint2 *buffer_a[MAX_GPUS];
 
 #define ARGON2_SYNC_POINTS 4 
 #define argon_outlen 32
