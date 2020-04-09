@@ -2,6 +2,7 @@
 //
 //#pragma once 
 #include "mtp.h"
+
 #ifdef _MSC_VER
 #include <windows.h>
 #include <winbase.h> /* For SecureZeroMemory */
@@ -22,6 +23,7 @@ static const unsigned int memory_cost = memcost;
 extern void get_tree(int thr_id,uint8_t *d);
 extern uint8_t* get_tree2(int thr_id);
 extern void get_block(int thr_id, void* d, uint32_t index);
+extern void get_block_test(int thr_id, void* d, uint32_t index, cudaStream_t s0);
 
 uint32_t index_beta(const argon2_instance_t *instance,
 	const argon2_position_t *position, uint32_t pseudo_rand,
@@ -141,6 +143,46 @@ void getblockindex(int thr_id, uint32_t ij, argon2_instance_t *instance, uint32_
 
 	block b;
 	get_block(thr_id, &b, ij_prev);
+	uint64_t prev_block_opening = b.v[0];//instance->memory[ij_prev].v[0];
+	uint32_t ref_lane = (uint32_t)((prev_block_opening >> 32) % instance->lanes);
+
+	uint32_t pseudo_rand = (uint32_t)(prev_block_opening & 0xFFFFFFFF);
+
+	uint32_t Lane = ((ij) / instance->lane_length);
+	uint32_t Slice = (ij - (Lane * instance->lane_length)) / instance->segment_length;
+	uint32_t posIndex = ij - Lane * instance->lane_length - Slice * instance->segment_length;
+
+
+	uint32_t rec_ij = Slice*instance->segment_length + Lane *instance->lane_length + (ij % instance->segment_length);
+
+	if (Slice == 0)
+		ref_lane = Lane;
+
+
+	argon2_position_t position = { 0, Lane , (uint8_t)Slice, posIndex };
+
+	uint32_t ref_index = index_beta(instance, &position, pseudo_rand, ref_lane == position.lane);
+
+	uint32_t computed_ref_block = instance->lane_length * ref_lane + ref_index;
+
+	*out_ij_prev = ij_prev;
+	*out_computed_ref_block = computed_ref_block;
+}
+
+
+void getblockindex_test(int thr_id, uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_block,cudaStream_t s0)
+{
+	uint32_t ij_prev = 0;
+	if (ij%instance->lane_length == 0)
+		ij_prev = ij + instance->lane_length - 1;
+	else
+		ij_prev = ij - 1;
+
+	if (ij % instance->lane_length == 1)
+		ij_prev = ij - 1;
+
+	block b;
+	get_block_test(thr_id, &b, ij_prev,s0);
 	uint64_t prev_block_opening = b.v[0];//instance->memory[ij_prev].v[0];
 	uint32_t ref_lane = (uint32_t)((prev_block_opening >> 32) % instance->lanes);
 
@@ -1048,6 +1090,203 @@ int mtptcr_solver(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
 	return 0;
 }
 
+
+
+
+int mtptcr_solver_test(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
+	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char* nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
+	MerkleTree TheTree, uint32_t* input, uint256 hashTarget,cudaStream_t s0 ) {
+
+	static const uint8_t L = 16;
+
+	if (instance != NULL) {
+		//		input[19]=0x01000000;
+		uint256 Y[L + 1];
+		//		std::string proof_blocks[L * 3];
+		memset(&Y, 0, sizeof(Y));
+		uint8_t zero[32] = { 0 };
+		ablake2b_state BlakeHash;
+		ablake2b_init(&BlakeHash, 32);
+
+
+
+
+		ablake2b_update(&BlakeHash, (unsigned char*)&input[0], 80);
+		ablake2b_update(&BlakeHash, (unsigned char*)&resultMerkleRoot[0], 16);
+		ablake2b_update(&BlakeHash, &TheNonce, sizeof(unsigned int));
+		ablake2b_final(&BlakeHash, (unsigned char*)&Y[0], 32);
+
+
+
+		blockS blocks[L * 2];
+
+		///////////////////////////////
+		bool init_blocks = false;
+		bool unmatch_block = false;
+		unsigned char proof_ser[1000] = { 0 };
+		unsigned int proof_size;
+		for (uint8_t j = 1; j <= L; j++) {
+
+			uint32_t ij = (((uint32_t*)(&Y[j - 1]))[0]) % (instance->context_ptr->m_cost);
+			uint32_t except_index = (uint32_t)(instance->context_ptr->m_cost / instance->context_ptr->lanes);
+			if (ij %except_index == 0 || ij%except_index == 1) {
+				init_blocks = true;
+				break;
+			}
+
+			uint32_t prev_index;
+			uint32_t ref_index;
+			getblockindex_test(thr_id, ij, instance, &prev_index, &ref_index,s0);
+
+			//			copy_blockS(&nBlockMTP[j * 2 - 2], &instance->memory[prev_index]);
+			get_block_test(thr_id, /*(uint8_t*)*/nBlockMTP[j * 2 - 2].v, prev_index,s0);
+			//ref block
+			//			copy_blockS(&nBlockMTP[j * 2 - 1], &instance->memory[ref_index]);
+			get_block_test(thr_id, /*(uint8_t*)*/nBlockMTP[j * 2 - 1].v, ref_index,s0);
+			block blockhash;
+			uint8_t blockhash_bytes[ARGON2_BLOCK_SIZE];
+			//			copy_block(&blockhash, &instance->memory[ij]);
+			get_block_test(thr_id, /*(uint8_t*)*/&blockhash.v, ij,s0);
+
+
+			store_block(&blockhash_bytes, &blockhash);
+
+			ablake2b_state BlakeHash2;
+			ablake2b_init(&BlakeHash2, 32);
+			ablake2b_update(&BlakeHash2, &Y[j - 1], sizeof(uint256));
+			ablake2b_update(&BlakeHash2, blockhash_bytes, ARGON2_BLOCK_SIZE);
+			ablake2b_final(&BlakeHash2, (unsigned char*)&Y[j], 32);
+			////////////////////////////////////////////////////////////////
+			// current block
+			clear_internal_memory(blockhash.v, ARGON2_BLOCK_SIZE);
+			clear_internal_memory(blockhash_bytes, ARGON2_BLOCK_SIZE);
+
+			unsigned char curr[32] = { 0 };
+			block blockhash_curr;
+			uint8_t blockhash_curr_bytes[ARGON2_BLOCK_SIZE];
+			//			copy_block(&blockhash_curr, &instance->memory[ij]);
+			get_block_test(thr_id, /*(uint8_t*)*/&blockhash_curr.v, ij,s0);
+			store_block(&blockhash_curr_bytes, &blockhash_curr);
+			ablake2b_state state_curr;
+			ablake2b_init(&state_curr, MERKLE_TREE_ELEMENT_SIZE_B);
+			ablake2b4rounds_update(&state_curr, blockhash_curr_bytes, ARGON2_BLOCK_SIZE);
+			uint8_t digest_curr[MERKLE_TREE_ELEMENT_SIZE_B];
+			ablake2b4rounds_final(&state_curr, digest_curr, sizeof(digest_curr));
+			MerkleTree::Buffer hash_curr = MerkleTree::Buffer(digest_curr, digest_curr + sizeof(digest_curr));
+			clear_internal_memory(blockhash_curr.v, ARGON2_BLOCK_SIZE);
+			clear_internal_memory(blockhash_curr_bytes, ARGON2_BLOCK_SIZE);
+
+
+			std::deque<std::vector<uint8_t>> zProofMTP = TheTree.getProofOrdered(hash_curr, ij + 1);
+
+			nProofMTP[(j * 3 - 3) * 353] = (unsigned char)(zProofMTP.size());
+
+			int k1 = 0;
+			for (const std::vector<uint8_t> &mtpData : zProofMTP) {
+				std::copy(mtpData.begin(), mtpData.end(), nProofMTP + ((j * 3 - 3) * 353 + 1 + k1 * mtpData.size()));
+				k1++;
+			}
+
+			//prev proof
+			unsigned char prev[32] = { 0 };
+			block blockhash_prev;
+			uint8_t blockhash_prev_bytes[ARGON2_BLOCK_SIZE];
+			//			copy_block(&blockhash_prev, &instance->memory[prev_index]);
+			get_block_test(thr_id, /*(uint8_t*)*/&blockhash_prev.v, prev_index,s0);
+			store_block(&blockhash_prev_bytes, &blockhash_prev);
+			ablake2b_state state_prev;
+			ablake2b_init(&state_prev, MERKLE_TREE_ELEMENT_SIZE_B);
+			ablake2b4rounds_update(&state_prev, blockhash_prev_bytes, ARGON2_BLOCK_SIZE);
+			uint8_t digest_prev[MERKLE_TREE_ELEMENT_SIZE_B];
+
+
+			ablake2b4rounds_final(&state_prev, digest_prev, sizeof(digest_prev));
+
+
+			MerkleTree::Buffer hash_prev = MerkleTree::Buffer(digest_prev, digest_prev + sizeof(digest_prev));
+			clear_internal_memory(blockhash_prev.v, ARGON2_BLOCK_SIZE);
+			clear_internal_memory(blockhash_prev_bytes, ARGON2_BLOCK_SIZE);
+
+			std::deque<std::vector<uint8_t>> zProofMTP2 = TheTree.getProofOrdered(hash_prev, prev_index + 1);
+
+			nProofMTP[(j * 3 - 2) * 353] = (unsigned char)(zProofMTP2.size());
+
+			int k2 = 0;
+			for (const std::vector<uint8_t> &mtpData : zProofMTP2) {
+				std::copy(mtpData.begin(), mtpData.end(), nProofMTP + ((j * 3 - 2) * 353 + 1 + k2 * mtpData.size()));
+				k2++;
+			}
+
+
+			//ref proof
+			unsigned char ref[32] = { 0 };
+			block blockhash_ref;
+			uint8_t blockhash_ref_bytes[ARGON2_BLOCK_SIZE];
+			//			copy_block(&blockhash_ref, &instance->memory[ref_index]);
+			get_block_test(thr_id, /*(uint8_t*)*/&blockhash_ref.v, ref_index,s0);
+			store_block(&blockhash_ref_bytes, &blockhash_ref);
+			ablake2b_state state_ref;
+			ablake2b_init(&state_ref, MERKLE_TREE_ELEMENT_SIZE_B);
+			ablake2b4rounds_update(&state_ref, blockhash_ref_bytes, ARGON2_BLOCK_SIZE);
+			uint8_t digest_ref[MERKLE_TREE_ELEMENT_SIZE_B];
+			ablake2b4rounds_final(&state_ref, digest_ref, sizeof(digest_ref));
+			MerkleTree::Buffer hash_ref = MerkleTree::Buffer(digest_ref, digest_ref + sizeof(digest_ref));
+			clear_internal_memory(blockhash_ref.v, ARGON2_BLOCK_SIZE);
+			clear_internal_memory(blockhash_ref_bytes, ARGON2_BLOCK_SIZE);
+
+			std::deque<std::vector<uint8_t>> zProofMTP3 = TheTree.getProofOrdered(hash_ref, ref_index + 1);
+
+			nProofMTP[(j * 3 - 1) * 353] = (unsigned char)(zProofMTP3.size());
+
+			int k3 = 0;
+			for (const std::vector<uint8_t> &mtpData : zProofMTP3) {
+				std::copy(mtpData.begin(), mtpData.end(), nProofMTP + ((j * 3 - 1) * 353 + 1 + k3 * mtpData.size()));
+				k3++;
+			}
+
+
+			/////////////////////////////////////////////////////////////////////
+			/////////////////////////////////////////////////////////////////////
+		}
+
+		if (init_blocks) {
+
+			return 0;
+		}
+
+
+		char hex_tmp[64];
+
+		if (Y[L] > hashTarget) {
+			// Found a solution
+			printf("False positive. Nonce=%08x Hash:", TheNonce);
+			for (int n = 0; n < 32; n++) {
+				printf("%02x", ((unsigned char*)&Y[0])[n]);
+			}
+			printf("\n");
+		}
+		else {
+			for (int i = 0; i<32; i++)
+				mtpHashValue[i] = (((unsigned char*)(&Y[L]))[i]);
+
+			// Found a solution
+			/*
+			printf("Found a solution. Nonce=%08x Hash:", TheNonce);
+			for (int n = 0; n < 32; n++) {
+			printf("%02x", ((unsigned char*)&Y[L])[n]);
+			}
+			printf("\n");
+			*/
+			return 1;
+
+
+		}
+
+	}
+
+
+	return 0;
+}
 
 
 

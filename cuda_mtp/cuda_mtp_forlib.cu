@@ -10,10 +10,10 @@
 #define TPB_MTP75 128
 #if __CUDA_ARCH__ == 750
 #define TPB_MTP 128
-#define REG 4
+#define REG 1
 #else
 #define TPB_MTP 320
-#define REG 2
+#define REG 1
 #endif
 #define Granularity 8
 #define Granularity2 8
@@ -22,7 +22,7 @@
 #define Zeroing  make_uint4(0,0,0,0)
 #define Gran3  Granularity * 3 / 4
 #define Gran1  Granularity * 1 / 4
-#define SHR_OFF 1
+#define SHR_OFF REG
 #define FARLOAD(x) far[warp][(x)*(Granularity+SHR_OFF) + lane]
 #define FARSTORE(x) far[warp][lane*(Granularity+SHR_OFF) + (x)]
 
@@ -703,7 +703,7 @@ void mtp_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const Ty
 				for (int t = 0; t<Granularity2; t++) {
 				uint32_t IndexLocShuff =  Index + __shfl_sync(mask, YIndex ,t, Granularity2) ;
 				asm volatile("prefetchu.L1 [%0];" : : "l"(&GBlock[IndexLocShuff]));
-				far[warp][t][lane] = (Index2<64)? __ldca(&GBlock[IndexLocShuff]) :Zeroing ;				
+				far[warp][t][lane] = (Index2<64)? __ldca(&GBlock[IndexLocShuff]) :Zeroing ;
 				}
 		
 
@@ -879,7 +879,7 @@ void mtptcr_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const
 
 
 
-#pragma unroll 8
+			#pragma unroll 8
 			for (int i = 0; i < 9; i++) {
 
 
@@ -890,11 +890,12 @@ void mtptcr_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const
 				uint32_t Index = lane + Granularity * argon_memcost * i; //i * (1 << 25); //// + YIndex;
 				int Index2 = lane + Granularity * i;
 
-#pragma unroll 				
+				#pragma unroll 				
 				for (int t = 0; t<Granularity2; t++) {
 					uint32_t IndexLocShuff = Index + __shfl_sync(mask, YIndex, t, Granularity2);
 					asm volatile("prefetchu.L1 [%0];" : : "l"(&GBlock[IndexLocShuff]));
 					far[warp][t][lane] = (Index2<64) ? __ldca(&GBlock[IndexLocShuff]) : Zeroing;
+
 				}
 
 
@@ -902,11 +903,11 @@ void mtptcr_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const
 				//					__syncwarp(mask);
 				//				#endif
 
-#pragma unroll
+				#pragma unroll
 				for (int t = Gran1; t < Granularity; t++)
 					m.u4[t] = far[warp][lane][t - Gran1];
 
-#pragma unroll
+				#pragma unroll
 				for (int t = 0; t < 8; t++)
 					v.u2[t] = DataTmp[t];
 
@@ -922,23 +923,23 @@ void mtptcr_yloop(uint32_t thr_id, uint32_t threads, uint32_t startNounce, const
 				v.u2[14] = last ? ~blakeIVl[6] : blakeIVl[6];
 				v.u2[15] = blakeIVl[7];
 
-#pragma unroll 
+				#pragma unroll 
 				for (int t = 0; t<12; t++)
 					ROUNDu(t);
 
-#pragma unroll 
+				#pragma unroll 
 				for (int t = 0; t < 8; t++)
 					DataTmp[t] ^= v.u2[t] ^ v.u2[t + 8];
 
 				if (last) continue;
 
-#pragma unroll
+				#pragma unroll
 				for (int t = 0; t< Gran1; t++)
 					m.u4[t] = far[warp][lane][t + Gran3];
 
 			}
 
-#pragma unroll 
+			#pragma unroll 
 			for (int t = 0; t<4; t++)
 				YLocal[t] = DataTmp[t];
 
@@ -996,6 +997,17 @@ void mtp_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn, 
 }
 
 __host__
+void mtp_setBlockTarget_test(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement,cudaStream_t s0)
+{
+	//	cudaSetDevice(device_map[thr_id]);
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbolAsync(pData, pDataIn, 80, 0, cudaMemcpyHostToDevice,s0));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbolAsync(pTarget, pTargetIn, 32, 0, cudaMemcpyHostToDevice,s0));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbolAsync(Elements, zElement, 4 * sizeof(uint32_t), 0, cudaMemcpyHostToDevice,s0));
+
+}
+
+__host__
 void mtp_fill(uint32_t dev_id, const uint64_t *Block, uint32_t offset, uint32_t datachunk)
 {
 //	cudaSetDevice(device_map[dev_id]);
@@ -1019,6 +1031,7 @@ uint32_t mtp_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce)
 	CUDA_SAFE_CALL(cudaMemset(d_MinNonces[thr_id], 0xff, sizeof(uint32_t)));
 //	int dev_id = device_map[thr_id % MAX_GPUS];
 
+
 	uint32_t tpb = TPB_MTP; //TPB52;
 	if (device_sm[device_map[thr_id]] == 750)
 		tpb = TPB_MTP75;
@@ -1040,28 +1053,28 @@ uint32_t mtp_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce)
 
 
 __host__
-uint32_t mtptcr_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce)
+uint32_t mtptcr_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce,cudaStream_t s0)
 {
 	//	cudaSetDevice(device_map[thr_id]);
 	uint32_t result = UINT32_MAX;
-	CUDA_SAFE_CALL(cudaMemset(d_MinNonces[thr_id], 0xff, sizeof(uint32_t)));
-	//	int dev_id = device_map[thr_id % MAX_GPUS];
+	cudaMemsetAsync(d_MinNonces[thr_id], 0xff, sizeof(uint32_t),s0);
 
 	uint32_t tpb = TPB_MTP; //TPB52;
 	if (device_sm[device_map[thr_id]] == 750)
 		tpb = TPB_MTP75;
 
-	dim3 gridyloop(threads / tpb);
+	dim3 gridyloop(threads / tpb); 
 	dim3 blockyloop(tpb);
+//	cudaStreamSynchronize(s0);
+	mtptcr_yloop << < gridyloop, blockyloop, thr_id,s0 >> >(thr_id, threads, startNounce, (Type*)HBlock[thr_id], d_MinNonces[thr_id]);
 
-	//yloop_init <<<gridyloop, blockyloop>>>(thr_id, threads, startNounce, GYLocal[thr_id]);
+	cudaStreamSynchronize(s0);
 
-	mtptcr_yloop << < gridyloop, blockyloop >> >(thr_id, threads, startNounce, (Type*)HBlock[thr_id], d_MinNonces[thr_id]);
-
-
-	CUDA_SAFE_CALL(cudaMemcpy(h_MinNonces[thr_id], d_MinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost));
+	cudaMemcpyAsync(h_MinNonces[thr_id], d_MinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost,s0);
+	cudaStreamSynchronize(s0);
 
 	result = *h_MinNonces[thr_id];
+
 	return result;
 
 }
@@ -1776,6 +1789,10 @@ __host__ void get_tree(int thr_id, uint8_t* d) {
 	CUDA_SAFE_CALL(cudaMemcpy(d, buffer_a[thr_id], sizeof(uint2) * 2 * 1048576 * 4, cudaMemcpyDeviceToHost));
 }
 
+__host__ void get_tree_test(int thr_id, uint8_t* d, cudaStream_t s0) {
+	CUDA_SAFE_CALL(cudaMemcpyAsync(d, buffer_a[thr_id], sizeof(uint2) * 2 * 1048576 * 4, cudaMemcpyDeviceToHost, s0));
+}
+
 __host__ uint8_t* get_tree2(int thr_id) {
 	uint8_t *d; 
 	CUDA_SAFE_CALL(cudaMallocHost(&d, sizeof(uint2) * 2 * 1048576 * 4));
@@ -1797,8 +1814,19 @@ __host__ void get_block(int thr_id, void* d, uint32_t index) {
 
 }
 
+__host__ void get_block_test(int thr_id, void* d, uint32_t index, cudaStream_t s0) {
+	//	cudaSetDevice(device_map[thr_id]);
 
-__host__ void mtp_i_cpu(int thr_id, uint32_t *block_header) {
+	//	cudaMemcpy(d, &HBlock[thr_id][64 * index], sizeof(uint64_t) * 128, cudaMemcpyDeviceToHost);
+
+	for (int i = 0; i<8; i++) {
+		uint4 *Blockptr = &HBlock[thr_id][index * 8 + i*argon_memcost * 8];
+		cudaMemcpyAsync((uint64_t*)d + 16 * i, Blockptr, 32 * sizeof(uint32_t), cudaMemcpyDeviceToHost,s0);
+	}
+
+
+}
+__host__ void mtp_i_cpu(int thr_id, uint32_t *block_header, cudaStream_t s0) {
 
 //	cudaSetDevice(device_map[thr_id]);
 	cudaError_t err = cudaMemcpy(Header[thr_id], block_header, 8 * sizeof(uint32_t), cudaMemcpyHostToDevice);
@@ -1814,28 +1842,28 @@ __host__ void mtp_i_cpu(int thr_id, uint32_t *block_header) {
 	//        for(int i=0;i<4;i++)
 	//                mtp_i << <grid, block>> >(HBlock[thr_id],Header[thr_id],i);
 
-	mtp_i<0> << <grid, block >> >((uint4*)HBlock[thr_id], Header[thr_id]);
-//	cudaDeviceSynchronize();
-	mtp_i<1> << <grid, block >> >((uint4*)HBlock[thr_id], Header[thr_id]);
-//	cudaDeviceSynchronize();
-	mtp_i<2> << <grid, block >> >((uint4*)HBlock[thr_id], Header[thr_id]);
-//	cudaDeviceSynchronize();
-	mtp_i<3> << <grid, block >> >((uint4*)HBlock[thr_id], Header[thr_id]);
-//	cudaDeviceSynchronize();
+	mtp_i<0> << <grid, block, thr_id, s0 >> >((uint4*)HBlock[thr_id], Header[thr_id]);
+	cudaStreamSynchronize(s0);
+	mtp_i<1> << <grid, block, thr_id, s0 >> >((uint4*)HBlock[thr_id], Header[thr_id]);
+	cudaStreamSynchronize(s0);
+	mtp_i<2> << <grid, block, thr_id, s0 >> >((uint4*)HBlock[thr_id], Header[thr_id]);
+	cudaStreamSynchronize(s0);
+	mtp_i<3> << <grid, block, thr_id, s0 >> >((uint4*)HBlock[thr_id], Header[thr_id]);
+	cudaStreamSynchronize(s0);
 
 	tpb = 256;
 	dim3 grid2(1048576 * 4 / tpb);
 	dim3 block2(tpb);
-	mtp_fc << <grid2, block2 >> >(1048576 * 4, (uint4*)HBlock[thr_id], buffer_a[thr_id]);
-//	cudaDeviceSynchronize();
+	mtp_fc << <grid2, block2, thr_id, s0 >> >(1048576 * 4, (uint4*)HBlock[thr_id], buffer_a[thr_id]);
+	cudaStreamSynchronize(s0);
 
 }
 
 
-__host__ void mtp_i_cpu2(int thr_id, uint32_t *block_header) {
+__host__ void mtp_i_cpu2(int thr_id, uint32_t *block_header, cudaStream_t s0) {
 
 //	cudaSetDevice(device_map[thr_id]);
-	cudaError_t err = cudaMemcpy(Header[thr_id], block_header, 8 * sizeof(uint32_t), cudaMemcpyHostToDevice);
+	cudaError_t err = cudaMemcpyAsync(Header[thr_id], block_header, 8 * sizeof(uint32_t), cudaMemcpyHostToDevice,s0);
 	if (err != cudaSuccess)
 	{
 		printf("mtp_i_cpu2 %s\n", cudaGetErrorName(err));
@@ -1848,20 +1876,20 @@ __host__ void mtp_i_cpu2(int thr_id, uint32_t *block_header) {
 	//        for(int i=0;i<4;i++)
 	//                mtp_i << <grid, block>> >(HBlock[thr_id],Header[thr_id],i);
 
-	mtp_i2<0> << <grid, block >> >((uint4*)HBlock[thr_id], Header[thr_id]);
-	cudaDeviceSynchronize();
-	mtp_i2<1> << <grid, block >> >((uint4*)HBlock[thr_id], Header[thr_id]);
-	cudaDeviceSynchronize();
-	mtp_i2<2> << <grid, block >> >((uint4*)HBlock[thr_id], Header[thr_id]);
-	cudaDeviceSynchronize();
-	mtp_i2<3> << <grid, block >> >((uint4*)HBlock[thr_id], Header[thr_id]);
-	cudaDeviceSynchronize();
+	mtp_i2<0> << <grid, block, thr_id, s0 >> >((uint4*)HBlock[thr_id], Header[thr_id]);
+	cudaStreamSynchronize(s0);
+	mtp_i2<1> << <grid, block, thr_id, s0 >> >((uint4*)HBlock[thr_id], Header[thr_id]);
+	cudaStreamSynchronize(s0);
+	mtp_i2<2> << <grid, block, thr_id, s0 >> >((uint4*)HBlock[thr_id], Header[thr_id]);
+	cudaStreamSynchronize(s0);
+	mtp_i2<3> << <grid, block, thr_id, s0 >> >((uint4*)HBlock[thr_id], Header[thr_id]);
+	cudaStreamSynchronize(s0);
 
 	tpb = 256;
 	dim3 grid2(1048576 * 4 / tpb);
 	dim3 block2(tpb);
-	mtp_fc2 << <grid2, block2 >> >(1048576 * 4, (uint4*)HBlock[thr_id], buffer_a[thr_id]);
-	cudaDeviceSynchronize();
+	mtp_fc2 << <grid2, block2, thr_id, s0 >> >(1048576 * 4, (uint4*)HBlock[thr_id], buffer_a[thr_id]);
+	cudaStreamSynchronize(s0);
 
 }
 
@@ -1885,9 +1913,30 @@ void mtp_fill_1b(int thr_id, uint64_t *Block, uint32_t block_nr)
 }
 
 __host__
-void mtp_fill_1c(int thr_id, uint64_t *Block, uint32_t block_nr)
+void mtp_fill_1c_test(int thr_id, uint64_t *Block, uint32_t block_nr, cudaStream_t s0)
 {
 //	cudaSetDevice(device_map[thr_id]);
+	//	uint4 *Blockptr = &HBlock[thr_id][block_nr * 64];
+	//	cudaError_t err = cudaMemcpy(Blockptr, Block, 256 * sizeof(uint32_t), cudaMemcpyHostToDevice);
+	//subdivide blocks in 8 units of 128
+	cudaError_t err = cudaSuccess;
+	for (int i = 0; i<8; i++) {
+		uint4 *Blockptr = &HBlock[thr_id][block_nr * 8 + i*argon_memcost * 8];
+		err = cudaMemcpyAsync(Blockptr, Block + 16 * i, 32 * sizeof(uint32_t), cudaMemcpyHostToDevice,s0);
+	}
+	if (err != cudaSuccess)
+	{
+		printf("mtp_fill_1c %s\n", cudaGetErrorName(err));
+		cudaDeviceReset();
+		exit(1);
+	}
+
+}
+
+__host__
+void mtp_fill_1c(int thr_id, uint64_t *Block, uint32_t block_nr)
+{
+	//	cudaSetDevice(device_map[thr_id]);
 	//	uint4 *Blockptr = &HBlock[thr_id][block_nr * 64];
 	//	cudaError_t err = cudaMemcpy(Blockptr, Block, 256 * sizeof(uint32_t), cudaMemcpyHostToDevice);
 	//subdivide blocks in 8 units of 128

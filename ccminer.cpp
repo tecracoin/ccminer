@@ -3604,7 +3604,7 @@ static void *miner_thread(void *userdata)
 	/* Cpu thread affinity */
 
 	if (num_cpus > 1) {
-/*
+
 		if (opt_affinity == -1L && opt_n_threads > 1) {
 //			if (opt_debug)
 				applog(LOG_DEBUG, "Binding thread %d to cpu %d (mask %x)", thr_id,
@@ -3616,7 +3616,7 @@ static void *miner_thread(void *userdata)
 						(long) opt_affinity);
 			affine_to_cpu_mask(thr_id, (unsigned long) opt_affinity);
 		}
-*/
+
 	}
 
 	gpu_led_off(dev_id);

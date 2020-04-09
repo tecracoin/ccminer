@@ -17,6 +17,10 @@
 #include "argon2ref/blake2.h"
 #include "argon2ref/blake2-impl.h"
 #include "argon2ref/blamka-round-opt.h"
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+
 //#include "merkletree/sha.h"
 
 //#include "openssl\sha.h"
@@ -55,7 +59,7 @@ void getblockindex_orig(uint32_t ij, argon2_instance_t *instance, uint32_t *out_
 
 void getblockindex(int thr_id, uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_block);
 
-
+void getblockindex_test(int thr_id, uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_block,cudaStream_t s0);
 //int mtp_solver_withblock(uint32_t TheNonce, argon2_instance_t *instance, unsigned int d, block_mtpProof *output,
 // uint8_t *resultMerkleRoot, MerkleTree TheTree,uint32_t* input, uint256 hashTarget);
 
@@ -67,9 +71,17 @@ int mtp_solver(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
 	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
 
+//int mtp_solver_test(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
+//	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
+//	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
+
 int mtptcr_solver(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
 	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char* nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
+
+int mtptcr_solver_test(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
+	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char* nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
+	MerkleTree TheTree, uint32_t* input, uint256 hashTarget,cudaStream_t s0);
 
 
 MerkleTree::Elements mtp_init(argon2_instance_t *instance);

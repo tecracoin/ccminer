@@ -14,19 +14,21 @@
 
 extern void mtp_cpu_init(int thr_id, uint32_t threads);
 
-extern uint32_t mtptcr_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce);
+extern uint32_t mtptcr_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce, cudaStream_t s0);
 
 extern void mtp_setBlockTarget(int thr_id,const void* pDataIn, const void *pTargetIn, const void * zElement);
+extern void mtp_setBlockTarget_test(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement,cudaStream_t s0);
 extern void mtp_fill(uint32_t d, const uint64_t *Block, uint32_t offset, uint32_t datachunk);
 extern void mtp_fill_1b(int thr_id, uint64_t *Block, uint32_t block_nr);
 extern uint32_t get_tpb_mtp(int thr_id);
 
 extern void mtp_fill_1c(int thr_id, uint64_t *Block, uint32_t block_nr);
-
+extern void mtp_fill_1c_test(int thr_id, uint64_t *Block, uint32_t block_nr, cudaStream_t s0);
 //extern void mtp_i_cpu(int thr_id, uint32_t *block_header);
-extern void mtp_i_cpu(int thr_id, uint32_t *block_header);
-extern void mtp_i_cpu2(int thr_id, uint32_t *block_header);
+extern void mtp_i_cpu(int thr_id, uint32_t *block_header, cudaStream_t s0);
+extern void mtp_i_cpu2(int thr_id, uint32_t *block_header, cudaStream_t s0);
 void get_tree(int thr_id, uint8_t* d);
+void get_tree_test(int thr_id, uint8_t* d, cudaStream_t s0);
 #define HASHLEN 32
 #define SALTLEN 16
 #define PWD "password"
@@ -58,7 +60,7 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 //if (JobId==0)
 //	pthread_barrier_init(&barrier, NULL, nthreads);
 
-
+		cudaStream_t s0;
 	uint32_t *pdata = work->data;
 	uint32_t *ptarget = work->target;
 
@@ -79,9 +81,11 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 		
 		cudaDeviceReset();
 
-		CUDA_SAFE_CALL(cudaSetDeviceFlags(cudaDeviceScheduleYield));
-//		CUDA_SAFE_CALL(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
+
+//		CUDA_SAFE_CALL(cudaSetDeviceFlags(cudaDeviceScheduleYield));
+		CUDA_SAFE_CALL(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
 //		cudaDeviceSynchronize();
+		cudaStreamCreate(&s0);
 		cudaDeviceProp props;
 		cudaGetDeviceProperties(&props, dev_id);
 		int intensity = 20;
@@ -110,7 +114,6 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 	for (int k = 0; k < 20; k++) {
 		endiandata[k] = pdata[k];
 	}
-//printf(" \n ");
 
 
 if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0]) {
@@ -128,23 +131,20 @@ if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->x
 context[thr_id] = init_argon2d_param((const char*)endiandata);
 
 argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
-	mtp_fill_1c(thr_id, instance[thr_id].memory[0 + 0].v, 0 + 0);
-	mtp_fill_1c(thr_id, instance[thr_id].memory[0 + 1].v, 0 + 1);
-	mtp_fill_1c(thr_id, instance[thr_id].memory[2 + 0].v, 1048576 + 0);
-	mtp_fill_1c(thr_id, instance[thr_id].memory[2 + 1].v, 1048576 + 1);
-	mtp_fill_1c(thr_id, instance[thr_id].memory[4 + 0].v, 2097152 + 0);
-	mtp_fill_1c(thr_id, instance[thr_id].memory[4 + 1].v, 2097152 + 1);
-	mtp_fill_1c(thr_id, instance[thr_id].memory[6 + 0].v, 3145728 + 0);
-	mtp_fill_1c(thr_id, instance[thr_id].memory[6 + 1].v, 3145728 + 1);
+	mtp_fill_1c_test(thr_id, instance[thr_id].memory[0 + 0].v, 0 + 0,s0);
+	mtp_fill_1c_test(thr_id, instance[thr_id].memory[0 + 1].v, 0 + 1,s0);
+	mtp_fill_1c_test(thr_id, instance[thr_id].memory[2 + 0].v, 1048576 + 0,s0);
+	mtp_fill_1c_test(thr_id, instance[thr_id].memory[2 + 1].v, 1048576 + 1,s0);
+	mtp_fill_1c_test(thr_id, instance[thr_id].memory[4 + 0].v, 2097152 + 0,s0);
+	mtp_fill_1c_test(thr_id, instance[thr_id].memory[4 + 1].v, 2097152 + 1,s0);
+	mtp_fill_1c_test(thr_id, instance[thr_id].memory[6 + 0].v, 3145728 + 0,s0);
+	mtp_fill_1c_test(thr_id, instance[thr_id].memory[6 + 1].v, 3145728 + 1,s0);
 
-	mtp_i_cpu2(thr_id, instance[thr_id].block_header);
+	mtp_i_cpu2(thr_id, instance[thr_id].block_header,s0);
 
+	get_tree_test(thr_id,dx[thr_id],s0);
 
-
-	get_tree(thr_id,dx[thr_id]);
-
-
-//  sleep(10);
+	cudaStreamSynchronize(s0);
 
 	ordered_tree[thr_id] = new MerkleTree(dx[thr_id], true);
  
@@ -154,7 +154,8 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 
 	std::copy(root.begin(), root.end(), TheMerkleRoot[thr_id]);
 
-	mtp_setBlockTarget(thr_id, endiandata, ptarget, &TheMerkleRoot[thr_id]);
+	mtp_setBlockTarget_test(thr_id, endiandata, ptarget, &TheMerkleRoot[thr_id],s0);
+
 	root.resize(0);
 }
 
@@ -167,8 +168,8 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 		uint32_t foundNonce;
 
 		*hashes_done = pdata[19] - first_nonce + throughput;
-		foundNonce = mtptcr_cpu_hash_32(thr_id, throughput, pdata[19]);
-		cudaDeviceSynchronize();
+		foundNonce = mtptcr_cpu_hash_32(thr_id, throughput, pdata[19],s0);
+
 
 		if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0])
 			return 0; // if work has changed stop and go back to the initialization
@@ -184,7 +185,7 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 			blockS nBlockMTP[MTP_L *2] = {0};
 			unsigned char nProofMTP[MTP_L * 3 * 353 ] = {0};
 
-			uint32_t is_sol = mtptcr_solver(thr_id,foundNonce, &instance[thr_id], nBlockMTP,nProofMTP, TheMerkleRoot[thr_id], mtpHashValue, *ordered_tree[thr_id], endiandata,TheUint256Target[0]);
+			uint32_t is_sol = mtptcr_solver_test(thr_id,foundNonce, &instance[thr_id], nBlockMTP,nProofMTP, TheMerkleRoot[thr_id], mtpHashValue, *ordered_tree[thr_id], endiandata,TheUint256Target[0],s0);
 
 			if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0])
 				return 0; // if work has changed stop and go back to the initialization
@@ -244,7 +245,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 	unsigned char mtpHashValue[32];
 	struct timeval tv_start, tv_end, hdiff;
 
-
+	cudaStream_t s0;
 
 	//if (JobId==0)
 	//	pthread_barrier_init(&barrier, NULL, nthreads);
@@ -270,7 +271,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 
 		cudaDeviceReset();
 		cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
-
+		cudaStreamCreate(&s0);
 		//		cudaSetDeviceFlags(cudaDeviceScheduleYield);
 		//		cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte); 
 
@@ -326,7 +327,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 		mtp_fill_1c(thr_id, instance[thr_id].memory[6 + 0].v, 3145728 + 0);
 		mtp_fill_1c(thr_id, instance[thr_id].memory[6 + 1].v, 3145728 + 1);
 
-		mtp_i_cpu2(thr_id, instance[thr_id].block_header);
+		mtp_i_cpu2(thr_id, instance[thr_id].block_header,s0);
 
 		get_tree(thr_id, dx[thr_id]);
 
@@ -357,7 +358,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 		uint32_t foundNonce;
 
 		*hashes_done = pdata[19] - first_nonce + throughput;
-		foundNonce = mtptcr_cpu_hash_32(thr_id, throughput, pdata[19]);
+		foundNonce = mtptcr_cpu_hash_32(thr_id, throughput, pdata[19],s0);
 
 		uint32_t _ALIGN(64) vhash64[8];
 		if (foundNonce != UINT32_MAX)

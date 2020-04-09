@@ -21,8 +21,8 @@ extern uint32_t get_tpb_mtp(int thr_id);
 extern void mtp_fill_1c(int thr_id, uint64_t *Block, uint32_t block_nr);
 
 //extern void mtp_i_cpu(int thr_id, uint32_t *block_header);
-extern void mtp_i_cpu(int thr_id, uint32_t *block_header);
-extern void mtp_i_cpu2(int thr_id, uint32_t *block_header);
+extern void mtp_i_cpu(int thr_id, uint32_t *block_header, cudaStream_t s0);
+extern void mtp_i_cpu2(int thr_id, uint32_t *block_header, cudaStream_t s0);
 void get_tree(int thr_id, uint8_t* d);
 #define HASHLEN 32
 #define SALTLEN 16
@@ -51,7 +51,7 @@ extern "C" int scanhash_mtp(int nthreads,int thr_id, struct work* work, uint32_t
 {
 
 	unsigned char mtpHashValue[32];
-
+	cudaStream_t s0;
 //if (JobId==0)
 //	pthread_barrier_init(&barrier, NULL, nthreads);
 
@@ -76,7 +76,7 @@ extern "C" int scanhash_mtp(int nthreads,int thr_id, struct work* work, uint32_t
 		
 		cudaDeviceReset();
 		cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
-
+		cudaStreamCreate(&s0);
 //		cudaSetDeviceFlags(cudaDeviceScheduleYield);
 //		cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte); 
 		
@@ -133,7 +133,7 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 	mtp_fill_1c(thr_id, instance[thr_id].memory[6 + 0].v, 3145728 + 0);
 	mtp_fill_1c(thr_id, instance[thr_id].memory[6 + 1].v, 3145728 + 1);
 
-	mtp_i_cpu2(thr_id, instance[thr_id].block_header);
+	mtp_i_cpu2(thr_id, instance[thr_id].block_header,s0);
 
 
 
@@ -241,7 +241,7 @@ extern "C" int scanhash_mtp_solo(int nthreads, int thr_id, struct work* work, ui
 
 	unsigned char mtpHashValue[32];
 	struct timeval tv_start, tv_end, hdiff;
-	
+	cudaStream_t s0;
 	
 	
 	//if (JobId==0)
@@ -268,7 +268,7 @@ extern "C" int scanhash_mtp_solo(int nthreads, int thr_id, struct work* work, ui
 
 		cudaDeviceReset();
 		cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
-
+		cudaStreamCreate(&s0);
 		//		cudaSetDeviceFlags(cudaDeviceScheduleYield);
 		//		cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte); 
 
@@ -324,7 +324,7 @@ extern "C" int scanhash_mtp_solo(int nthreads, int thr_id, struct work* work, ui
 		mtp_fill_1c(thr_id, instance[thr_id].memory[6 + 0].v, 3145728 + 0);
 		mtp_fill_1c(thr_id, instance[thr_id].memory[6 + 1].v, 3145728 + 1);
 
-		mtp_i_cpu2(thr_id, instance[thr_id].block_header);
+		mtp_i_cpu2(thr_id, instance[thr_id].block_header,s0);
 
 		get_tree(thr_id, dx[thr_id]);
 
