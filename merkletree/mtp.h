@@ -69,17 +69,17 @@ int mtp_solver_orig(uint32_t TheNonce, argon2_instance_t *instance,
 
 int mtp_solver(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
 	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
-	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
+	MerkleTree TheTree, uint32_t* input, uint256 hashTarget,cudaStream_t s0);
 
 //int mtp_solver_test(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
 //	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 //	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
 
-int mtptcr_solver(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
+int mtptcr_solver_old(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
 	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char* nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
 
-int mtptcr_solver_test(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
+int mtptcr_solver(int thr_id, uint32_t TheNonce, argon2_instance_t *instance,
 	blockS *nBlockMTP /*[72 * 2][128]*/, unsigned char* nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget,cudaStream_t s0);
 

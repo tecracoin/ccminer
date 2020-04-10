@@ -986,7 +986,7 @@ uint32_t get_tpb_mtp(int thr_id)
 
 
 __host__
-void mtp_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement)
+void mtp_setBlockTarget_old(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement)
 {
 //	cudaSetDevice(device_map[thr_id]);
 
@@ -997,7 +997,7 @@ void mtp_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn, 
 }
 
 __host__
-void mtp_setBlockTarget_test(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement,cudaStream_t s0)
+void mtp_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement,cudaStream_t s0)
 {
 	//	cudaSetDevice(device_map[thr_id]);
 
@@ -1024,12 +1024,11 @@ void mtp_fill(uint32_t dev_id, const uint64_t *Block, uint32_t offset, uint32_t 
 }
 
 __host__
-uint32_t mtp_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce)
+uint32_t mtp_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce,cudaStream_t s0)
 {
 //	cudaSetDevice(device_map[thr_id]);
 	uint32_t result = UINT32_MAX;
-	CUDA_SAFE_CALL(cudaMemset(d_MinNonces[thr_id], 0xff, sizeof(uint32_t)));
-//	int dev_id = device_map[thr_id % MAX_GPUS];
+	cudaMemsetAsync(d_MinNonces[thr_id], 0xff, sizeof(uint32_t), s0);
 
 
 	uint32_t tpb = TPB_MTP; //TPB52;
@@ -1040,11 +1039,10 @@ uint32_t mtp_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce)
 	dim3 blockyloop(tpb);
 
 	//yloop_init <<<gridyloop, blockyloop>>>(thr_id, threads, startNounce, GYLocal[thr_id]);
+	cudaStreamSynchronize(s0);
 
 	mtp_yloop << < gridyloop, blockyloop >> >(thr_id, threads, startNounce, (Type*)HBlock[thr_id],  d_MinNonces[thr_id]);
-
-
-	CUDA_SAFE_CALL(cudaMemcpy(h_MinNonces[thr_id], d_MinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost));
+	cudaStreamSynchronize(s0);
 
 	result = *h_MinNonces[thr_id];
 	return result; 
@@ -1785,11 +1783,11 @@ __global__  void mtp_fc2(uint32_t threads, uint4  *  DBlock, uint2 *a) {
 
 
 
-__host__ void get_tree(int thr_id, uint8_t* d) {
+__host__ void get_tree_old(int thr_id, uint8_t* d) {
 	CUDA_SAFE_CALL(cudaMemcpy(d, buffer_a[thr_id], sizeof(uint2) * 2 * 1048576 * 4, cudaMemcpyDeviceToHost));
 }
 
-__host__ void get_tree_test(int thr_id, uint8_t* d, cudaStream_t s0) {
+__host__ void get_tree(int thr_id, uint8_t* d, cudaStream_t s0) {
 	CUDA_SAFE_CALL(cudaMemcpyAsync(d, buffer_a[thr_id], sizeof(uint2) * 2 * 1048576 * 4, cudaMemcpyDeviceToHost, s0));
 }
 
@@ -1913,7 +1911,7 @@ void mtp_fill_1b(int thr_id, uint64_t *Block, uint32_t block_nr)
 }
 
 __host__
-void mtp_fill_1c_test(int thr_id, uint64_t *Block, uint32_t block_nr, cudaStream_t s0)
+void mtp_fill_1c(int thr_id, uint64_t *Block, uint32_t block_nr, cudaStream_t s0)
 {
 //	cudaSetDevice(device_map[thr_id]);
 	//	uint4 *Blockptr = &HBlock[thr_id][block_nr * 64];
@@ -1934,7 +1932,7 @@ void mtp_fill_1c_test(int thr_id, uint64_t *Block, uint32_t block_nr, cudaStream
 }
 
 __host__
-void mtp_fill_1c(int thr_id, uint64_t *Block, uint32_t block_nr)
+void mtp_fill_1c_old(int thr_id, uint64_t *Block, uint32_t block_nr)
 {
 	//	cudaSetDevice(device_map[thr_id]);
 	//	uint4 *Blockptr = &HBlock[thr_id][block_nr * 64];
