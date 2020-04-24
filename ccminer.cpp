@@ -2219,10 +2219,10 @@ static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
 	int cbtx_size;
 	uchar *cbtx = NULL;
 	int32_t mtpVersion = 0x1000;
-	const int rewardsStage3Start = 300000;
-	const int rewardsStage4Start = 510000;
-	const int rewardsStage5Start = 760000;
-	const int rewardsStage6Start = 970000;
+	const int rewardsStage3Start = 500000;
+	const int rewardsStage4Start = 710000;
+	const int rewardsStage5Start = 960000;
+	const int rewardsStage6Start = 1170000;
 	const int64_t devfi = 500000;
 	int tx_count, tx_size;
 	uchar txc_vi[9];

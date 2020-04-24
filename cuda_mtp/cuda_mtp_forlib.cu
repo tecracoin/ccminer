@@ -1039,9 +1039,12 @@ uint32_t mtp_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce,cuda
 	dim3 blockyloop(tpb);
 
 	//yloop_init <<<gridyloop, blockyloop>>>(thr_id, threads, startNounce, GYLocal[thr_id]);
-	cudaStreamSynchronize(s0);
+
 
 	mtp_yloop << < gridyloop, blockyloop >> >(thr_id, threads, startNounce, (Type*)HBlock[thr_id],  d_MinNonces[thr_id]);
+	cudaStreamSynchronize(s0);
+
+	cudaMemcpyAsync(h_MinNonces[thr_id], d_MinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost, s0);
 	cudaStreamSynchronize(s0);
 
 	result = *h_MinNonces[thr_id];
