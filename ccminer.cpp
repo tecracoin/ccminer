@@ -2203,7 +2203,7 @@ out:
 }
 
 
-static bool gbt_work_decode_mtptcr_old(const json_t *val, struct work *work)
+static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
 {
 
 	//restart_threads();
@@ -2219,10 +2219,12 @@ static bool gbt_work_decode_mtptcr_old(const json_t *val, struct work *work)
 	int cbtx_size;
 	uchar *cbtx = NULL;
 	int32_t mtpVersion = 0x1000;
-	const int rewardsStage3Start = 500000;
-	const int rewardsStage4Start = 710000;
-	const int rewardsStage5Start = 960000;
-	const int rewardsStage6Start = 1170000;
+	char* coinbase_payload;
+	const int rewardsStage2Start = 71000;
+	const int rewardsStage3Start = 840000;
+	const int rewardsStage4Start = 1680000;
+	const int rewardsStage5Start = 2520000;
+	const int rewardsStage6Start = 3366000;
 	const int64_t devfi = 500000;
 	int tx_count, tx_size;
 	uchar txc_vi[9];
@@ -2239,7 +2241,10 @@ static bool gbt_work_decode_mtptcr_old(const json_t *val, struct work *work)
 	json_t *mnaddy;
 	json_t *mnscript;
 	bool rc = false;
-
+	json_t* myobj = json_object_get(val, "coinbase_payload");
+	int myobj_len = (int)strlen(json_string_value(myobj));
+	coinbase_payload = (char*)malloc(myobj_len);
+	coinbase_payload = (char*)json_string_value(myobj);
 	tmp = json_object_get(val, "mutable");
 	if (tmp && json_is_array(tmp)) {
 		n = (int)json_array_size(tmp);
@@ -2409,7 +2414,8 @@ static bool gbt_work_decode_mtptcr_old(const json_t *val, struct work *work)
 		cbvalue = (int64_t)(json_is_integer(tmp) ? json_integer_value(tmp) : json_number_value(tmp));
 		cbvalue = (uint32_t)cbvalue - (uint32_t)devf4;
 		cbtx = (uchar*)malloc(256 * 256);
-		le32enc((uint32_t *)cbtx, 1); // version /
+//		le32enc((uint32_t *)cbtx, 1); // version /
+		be32enc((uint32_t*)cbtx, 0x03000500); // version from tecra wallet 1.7
 		cbtx[4] = 1; // in-counter /
 		memset(cbtx + 5, 0x00, 32); // prev txout hash /
 		le32enc((uint32_t *)(cbtx + 37), 0xffffffff); // prev txout index /
@@ -2496,6 +2502,11 @@ static bool gbt_work_decode_mtptcr_old(const json_t *val, struct work *work)
 
 		hex2bin(cbtx + cbtx_size, coinb7, strlen(coinb7));
 		cbtx_size = cbtx_size + (int)((strlen(coinb7)) / 2);
+
+		hex2bin(cbtx + cbtx_size, coinbase_payload, myobj_len);
+		cbtx_size = cbtx_size + (int)(myobj_len / 2);
+		free(coinbase_payload);
+
 		coinbase_append = true;
 	}
 	if (coinbase_append) {
@@ -2640,7 +2651,7 @@ out:
 
 
 
-static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
+static bool gbt_work_decode_mtptcr_testnet(const json_t *val, struct work *work)
 {
 //printf("******************* gbt_work_decode_mtptcr **********************\n");
 	//restart_threads();
