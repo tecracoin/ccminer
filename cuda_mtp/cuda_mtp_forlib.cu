@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <memory.h>
 #define TPB_MTP75 128
-#if __CUDA_ARCH__ == 750
+#if __CUDA_ARCH__ >= 750
 #define TPB_MTP 128
 #define REG 1
 #else
@@ -30,7 +30,7 @@
 
 #include "lyra2/cuda_lyra2_vectors.h"
 static uint32_t *h_MinNonces[MAX_GPUS]; // this need to get fixed as the rest of that routine
-static uint32_t *d_MinNonces[MAX_GPUS];
+__device__ uint32_t *d_MinNonces[MAX_GPUS];
 
 __constant__ uint32_t pTarget[8];
 __constant__ uint32_t pData[20]; // truncated data
@@ -346,7 +346,7 @@ __device__ __forceinline__ ulonglong2 __ldcg2(const ulonglong2 * __restrict__ pt
 	return ret;
 }
 
-__device__ __forceinline__ uint4 __ldlu(const uint4 * __restrict__ ptr) { uint4 ret; asm volatile ("ld.global.lu.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(ret.x), "=r"(ret.y), "=r"(ret.z), "=r"(ret.w) : __LDG_PTR(ptr)); return ret; }
+//__device__ __forceinline__ uint4 __ldlu(const uint4 * __restrict__ ptr) { uint4 ret; asm volatile ("ld.global.lu.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(ret.x), "=r"(ret.y), "=r"(ret.z), "=r"(ret.w) : __LDG_PTR(ptr)); return ret; }
 
 __device__ __forceinline__ void blakeL1(uint2 &a,uint2 b, uint64_t m) 
 {
@@ -977,7 +977,7 @@ uint32_t get_tpb_mtp(int thr_id)
 {
 //	cudaSetDevice(device_map[thr_id]);
 	uint32_t tpb = (uint32_t)TPB_MTP;
-	if (device_sm[device_map[thr_id]] == 750)
+	if (device_sm[device_map[thr_id]] >= 750)
 	{ 
 		tpb = TPB_MTP75;
 	}
@@ -1032,7 +1032,7 @@ uint32_t mtp_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce,cuda
 
 
 	uint32_t tpb = TPB_MTP; //TPB52;
-	if (device_sm[device_map[thr_id]] == 750)
+	if (device_sm[device_map[thr_id]] >= 750)
 		tpb = TPB_MTP75;
 	
 	dim3 gridyloop(threads / tpb);
@@ -1058,23 +1058,26 @@ uint32_t mtptcr_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce,c
 {
 	//	cudaSetDevice(device_map[thr_id]);
 	uint32_t result = UINT32_MAX;
-	cudaMemsetAsync(d_MinNonces[thr_id], 0xff, sizeof(uint32_t),s0);
+	*h_MinNonces[thr_id]= UINT32_MAX;
+	
+	CUDA_SAFE_CALL(cudaMemsetAsync((void*)d_MinNonces[thr_id], (int)0xff, (size_t)(sizeof(uint32_t)),s0));
 
 	uint32_t tpb = TPB_MTP; //TPB52;
-	if (device_sm[device_map[thr_id]] == 750)
+	if (device_sm[device_map[thr_id]] >= 750)
 		tpb = TPB_MTP75;
 
 	dim3 gridyloop(threads / tpb); 
 	dim3 blockyloop(tpb);
 //	cudaStreamSynchronize(s0);
-	mtptcr_yloop << < gridyloop, blockyloop, thr_id,s0 >> >(thr_id, threads, startNounce, (Type*)HBlock[thr_id], d_MinNonces[thr_id]);
+	mtptcr_yloop <<< gridyloop, blockyloop, thr_id, s0 >>>(thr_id, threads, startNounce, (Type*)HBlock[thr_id], d_MinNonces[thr_id]);
 
-	cudaStreamSynchronize(s0);
+	CUDA_SAFE_CALL(cudaStreamSynchronize(s0));
 
-	cudaMemcpyAsync(h_MinNonces[thr_id], d_MinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost,s0);
-	cudaStreamSynchronize(s0);
+	CUDA_SAFE_CALL(cudaMemcpyAsync(h_MinNonces[thr_id], d_MinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost,s0));
+	CUDA_SAFE_CALL(cudaStreamSynchronize(s0));
 
 	result = *h_MinNonces[thr_id];
+	
 
 	return result;
 

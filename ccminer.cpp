@@ -2203,7 +2203,7 @@ out:
 }
 
 
-static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
+static bool gbt_work_decode_mtptcr_old(const json_t *val, struct work *work)
 {
 
 	//restart_threads();
@@ -2371,40 +2371,40 @@ static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
 			devf1 = (coinbasesubsidy * 10) / 100;
 			devf2 = (coinbasesubsidy * 55) / 100;
 			devf3 = (coinbasesubsidy * 15) / 100;
-			devf4 = 5*devfi;
+			devf4 = 5 * devfi;
 		}
 		else if (work->height < rewardsStage5Start) { // 20% tnode; miner 10%
 			devf1 = (coinbasesubsidy * 10) / 100;
 			devf2 = (coinbasesubsidy * 40) / 100;
 			devf3 = (coinbasesubsidy * 20) / 100;
-			devf4 = 10*devfi;
+			devf4 = 10 * devfi;
 		}
 		else if (work->height < rewardsStage6Start) { // 20% tnode; miner 15%
 			devf1 = (coinbasesubsidy * 10) / 100;
 			devf2 = (coinbasesubsidy * 35) / 100;
 			devf3 = (coinbasesubsidy * 20) / 100;
-			devf4 = 15*devfi;
+			devf4 = 15 * devfi;
 		}
 		else {										  // 25% tnode; miner 20%
 			devf1 = (coinbasesubsidy * 10) / 100;
 			devf2 = (coinbasesubsidy * 20) / 100;
 			devf3 = (coinbasesubsidy * 25) / 100;
-			devf4 = 20*devfi;
+			devf4 = 20 * devfi;
 		}
 		if (!tmp || !json_is_number(tmp)) {
 			applog(LOG_ERR, "JSON invalid coinbasevalue");
 			goto out;
 		}
 
-			mnval = json_object_get(val, "tnode");
-			mnamount = json_object_get(mnval, "amount");
-			mnaddy = json_object_get(mnval, "payee");
-			mnscript = json_object_get(mnval, "script");
-			/*
-			printf("mn addy %s", json_string_value(mnaddy));
-			printf("mn amount %d", json_integer_value(mnamount));
-			printf("mn script %d", json_string_value(mnscript));
-			*/
+		mnval = json_object_get(val, "tnode");
+		mnamount = json_object_get(mnval, "amount");
+		mnaddy = json_object_get(mnval, "payee");
+		mnscript = json_object_get(mnval, "script");
+		/*
+		printf("mn addy %s", json_string_value(mnaddy));
+		printf("mn amount %d", json_integer_value(mnamount));
+		printf("mn script %d", json_string_value(mnscript));
+		*/
 
 		cbvalue = (int64_t)(json_is_integer(tmp) ? json_integer_value(tmp) : json_number_value(tmp));
 		cbvalue = (uint32_t)cbvalue - (uint32_t)devf4;
@@ -2425,7 +2425,7 @@ static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
 		le32enc((uint32_t *)(cbtx + cbtx_size), 0xffffffff); // sequence /
 		cbtx_size += 4;
 
-		cbtx[cbtx_size++] =  6; // out-counter /
+		cbtx[cbtx_size++] = 6; // out-counter /
 
 		le32enc((uint32_t *)(cbtx + cbtx_size), (uint32_t)cbvalue); // value /
 		le32enc((uint32_t *)(cbtx + cbtx_size + 4), cbvalue >> 32);
@@ -2488,8 +2488,8 @@ static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
 		hex2bin(cbtx + cbtx_size, coinb4, strlen(coinb4));
 		cbtx_size = cbtx_size + (int)((strlen(coinb4)) / 2);
 
-//		hex2bin(cbtx + cbtx_size, coinb5, strlen(coinb5));
-//		cbtx_size = cbtx_size + (int)((strlen(coinb5)) / 2);
+		//		hex2bin(cbtx + cbtx_size, coinb5, strlen(coinb5));
+		//		cbtx_size = cbtx_size + (int)((strlen(coinb5)) / 2);
 
 		hex2bin(cbtx + cbtx_size, coinb6, strlen(coinb6));
 		cbtx_size = cbtx_size + (int)((strlen(coinb6)) / 2);
@@ -2544,12 +2544,489 @@ static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
 			cbtx_size += n;
 		}
 	}
-
+	printf("cbtx %s \n", cbtx);
 	n = varint_encode(txc_vi, 1 + tx_count);
 	work->txs = (char*)malloc(2 * (n + cbtx_size + tx_size) + 1);
 	dbin2hex(work->txs, txc_vi, n);
 	dbin2hex(work->txs + 2 * n, cbtx, cbtx_size);
 
+	// generate merkle root 
+	merkle_tree = (uchar(*)[32]) calloc(((1 + tx_count + 1) & ~1), 32);
+
+	sha256d(merkle_tree[0], cbtx, cbtx_size);
+
+	for (i = 0; i < tx_count; i++) {
+		tmp = json_array_get(txa, i);
+		const char *tx_hex = json_string_value(json_object_get(tmp, "data"));
+		const int tx_size = tx_hex ? (int)(strlen(tx_hex) / 2) : 0;
+		unsigned char *tx = (uchar*)malloc(tx_size);
+		if (!tx_hex || !hex2bin(tx, tx_hex, tx_size)) {
+			applog(LOG_ERR, "JSON invalid transactions");
+			free(tx);
+			goto out;
+		}
+		sha256d(merkle_tree[1 + i], tx, tx_size);
+		if (!submit_coinbase)
+			strcat(work->txs, tx_hex);
+	}
+	n = 1 + tx_count;
+	while (n > 1) {
+		if (n % 2) {
+			memcpy(merkle_tree[n], merkle_tree[n - 1], 32);
+			++n;
+		}
+		n /= 2;
+		for (i = 0; i < n; i++)
+			sha256d(merkle_tree[i], merkle_tree[2 * i], 64);
+	}
+
+	// assemble block header 
+	work->data[0] = (version);
+	for (i = 0; i < 8; i++)
+		work->data[8 - i] = be32dec(prevhash + i);
+	for (i = 0; i < 8; i++)
+		work->data[9 + i] = le32dec((uint32_t *)merkle_tree[0] + i);
+	work->data[17] = (curtime);
+	work->data[18] = be32dec(&bits);
+	memset(work->data + 19, 0x00, 52);
+	/************************************************************************/
+	//mtp stuff
+
+	work->data[20] = (mtpVersion);
+	/*************************************************************************/
+
+	//	work->data[20] = 0x80000000;
+	//	work->data[20] = 0x80000000;
+	//	work->data[31] = 0x000002A0;
+
+	if (unlikely(!jobj_binary(val, "target", target, sizeof(target)))) {
+		applog(LOG_ERR, "JSON invalid target");
+		goto out;
+	}
+	for (i = 0; i < ARRAY_SIZE(work->target); i++)
+		work->target[7 - i] = be32dec(target + i);
+
+	work->targetdiff = target_to_diff(work->target);
+
+	tmp = json_object_get(val, "workid");
+	if (tmp) {
+		if (!json_is_string(tmp)) {
+			applog(LOG_ERR, "JSON invalid workid");
+			goto out;
+		}
+		work->workid = strdup(json_string_value(tmp));
+	}
+
+	rc = true;
+out:
+	// Long polling 
+	tmp = json_object_get(val, "longpollid");
+	if (want_longpoll && json_is_string(tmp)) {
+		free(lp_id);
+		lp_id = strdup(json_string_value(tmp));
+		if (!have_longpoll) {
+			char *lp_uri;
+			tmp = json_object_get(val, "longpolluri");
+			lp_uri = json_is_string(tmp) ? strdup(json_string_value(tmp)) : rpc_url;
+			have_longpoll = true;
+			tq_push(thr_info[longpoll_thr_id].q, lp_uri);
+		}
+	}
+
+	free(merkle_tree);
+	free(cbtx);
+	return rc;
+}
+
+
+
+static bool gbt_work_decode_mtptcr(const json_t *val, struct work *work)
+{
+//printf("******************* gbt_work_decode_mtptcr **********************\n");
+	//restart_threads();
+	int i, n;
+	uint32_t version, curtime, bits;
+	uint32_t prevhash[8];
+	uint32_t target[8];
+	int64_t coinbasesubsidy;
+	int64_t devf1;
+	int64_t devf2;
+	int64_t devf3;
+	int64_t devf4;
+	int cbtx_size;
+	uchar *cbtx = NULL;
+	int32_t mtpVersion = 0x1000;
+	char* coinbase_payload;
+	const int rewardsStage2Start = 71000;
+	const int rewardsStage3Start = 840000;
+	const int rewardsStage4Start = 1680000;
+	const int rewardsStage5Start = 2520000;
+	const int rewardsStage6Start = 3366000;
+
+	const int64_t devfi = 500000;
+	int tx_count, tx_size;
+	uchar txc_vi[9];
+	uchar(*merkle_tree)[32] = NULL;
+	bool coinbase_append = false;
+	bool submit_coinbase = false;
+	bool version_force = false;
+	bool version_reduce = false;
+	json_t *tmp, *txa;
+	json_t *subsidy;
+
+	json_t *mnval;
+	json_t *mnamount;
+	json_t *mnaddy;
+	json_t *mnscript;
+	bool rc = false;
+	json_t* myobj = json_object_get(val, "coinbase_payload");
+	int myobj_len = (int)strlen(json_string_value(myobj));
+	coinbase_payload = (char*)malloc(myobj_len);
+	coinbase_payload = (char*)json_string_value(myobj);
+//	printf("json coinbase value %s\n", json_string_value(myobj));
+
+//	printf("coinbase_payload length %08x\n",myobj_len/2);
+//	printf("coinbase_payload %s\n", coinbase_payload);
+
+	tmp = json_object_get(val, "mutable");
+	if (tmp && json_is_array(tmp)) {
+		n = (int)json_array_size(tmp);
+		for (i = 0; i < n; i++) {
+			const char *s = json_string_value(json_array_get(tmp, i));
+			if (!s)
+				continue;
+			if (!strcmp(s, "coinbase/append"))
+				coinbase_append = true;
+			else if (!strcmp(s, "submit/coinbase"))
+				submit_coinbase = true;
+			else if (!strcmp(s, "version/force"))
+				version_force = true;
+			else if (!strcmp(s, "version/reduce"))
+				version_reduce = true;
+		}
+	}
+
+	tmp = json_object_get(val, "height");
+	if (!tmp || !json_is_integer(tmp)) {
+		applog(LOG_ERR, "JSON invalid height");
+		goto out;
+	}
+	if (work->height == (int)json_integer_value(tmp))
+		return false;
+
+	work->height = (int)json_integer_value(tmp);
+	applog(LOG_BLUE, "Current block is %d", work->height);
+
+	tmp = json_object_get(val, "version");
+	if (!tmp || !json_is_integer(tmp)) {
+		applog(LOG_ERR, "JSON invalid version");
+		goto out;
+	}
+	version = (uint32_t)json_integer_value(tmp);
+
+//    printf("version %08x versionff %08x\n",version, version & 0xffU);
+	if ((version & 0xffU) > BLOCK_VERSION_CURRENT) {
+		if (version_reduce) {
+			version = (version & ~0xffU) | BLOCK_VERSION_CURRENT;
+		}
+		else if (have_gbt && allow_getwork && !version_force) {
+			applog(LOG_DEBUG, "Switching to getwork, gbt version %d", version);
+			have_gbt = false;
+			goto out;
+		}
+		else if (!version_force) {
+			applog(LOG_ERR, "Unrecognized block version: %u", version);
+			goto out;
+		}
+	}
+
+	if (unlikely(!jobj_binary(val, "previousblockhash", prevhash, sizeof(prevhash)))) {
+		applog(LOG_ERR, "JSON invalid previousblockhash");
+		goto out;
+	}
+
+	tmp = json_object_get(val, "curtime");
+	if (!tmp || !json_is_integer(tmp)) {
+		applog(LOG_ERR, "JSON invalid curtime");
+		goto out;
+	}
+
+	// random seed initialized with time and pid
+#ifdef _MSC_VER 		
+	srand(time(NULL) - _getpid());
+#elif __GNUC__
+	srand(time(NULL) - getpid());
+#endif		
+
+	uint32_t ranraw[1];
+	ranraw[0] = (uint32_t)rand();
+
+	curtime = (uint32_t)json_integer_value(tmp);
+
+	if (unlikely(!jobj_binary(val, "bits", &bits, sizeof(bits)))) {
+		applog(LOG_ERR, "JSON invalid bits");
+		goto out;
+	}
+
+	// find count and size of transactions 
+	txa = json_object_get(val, "transactions");
+	if (!txa || !json_is_array(txa)) {
+		applog(LOG_ERR, "JSON invalid transactions");
+		goto out;
+	}
+	tx_count = (int)json_array_size(txa);
+	tx_size = 0;
+	for (i = 0; i < tx_count; i++) {
+		const json_t *tx = json_array_get(txa, i);
+		const char *tx_hex = json_string_value(json_object_get(tx, "data"));
+		if (!tx_hex) {
+			applog(LOG_ERR, "JSON invalid transactions");
+			goto out;
+		}
+		tx_size += (int)(strlen(tx_hex) / 2);
+	}
+
+	// build coinbase transaction 
+	tmp = json_object_get(val, "coinbasetxn");
+	if (tmp) {
+		const char *cbtx_hex = json_string_value(json_object_get(tmp, "data"));
+		cbtx_size = cbtx_hex ? (int)strlen(cbtx_hex) / 2 : 0;
+		cbtx = (uchar*)malloc(cbtx_size + 100);
+		if (cbtx_size < 60 || !hex2bin(cbtx, cbtx_hex, cbtx_size)) {
+			applog(LOG_ERR, "JSON invalid coinbasetxn");
+			goto out;
+		}
+	}
+	else {
+		int64_t cbvalue;
+		if (!pk_script_size) {
+			if (allow_getwork) {
+				applog(LOG_INFO, "No payout address provided, switching to getwork");
+				have_gbt = false;
+			}
+			else
+				applog(LOG_ERR, "No payout address provided");
+			goto out;
+		}
+		tmp = json_object_get(val, "coinbasevalue");
+		subsidy = json_object_get(val, "coinbasesubsidy");
+		coinbasesubsidy = 11250000000; //(int64_t)(json_is_integer(subsidy) ? json_integer_value(subsidy) : json_number_value(subsidy));
+
+		if (work->height < 600) {  // 15% tnode  miner 1%
+			devf1 = (coinbasesubsidy * 10) / 100;
+			devf2 = (coinbasesubsidy * 79) / 100;
+			devf3 = (coinbasesubsidy * 10) / 100;
+			devf4 = 0;
+		}
+		else
+			if (work->height < rewardsStage2Start) {  // 15% tnode  miner 1%
+				devf1 = (coinbasesubsidy * 10) / 100;
+				devf2 = (coinbasesubsidy * 40) / 100;
+				devf3 = (coinbasesubsidy * 10) / 100;
+				devf4 = (coinbasesubsidy * 39) / 100;
+			}
+			else
+		if (work->height < rewardsStage3Start) {  // 15% tnode  miner 1%
+			devf1 = (coinbasesubsidy * 10) / 100;
+			devf2 = (coinbasesubsidy * 64) / 100;
+			devf3 = (coinbasesubsidy * 10) / 100;
+			devf4 = (coinbasesubsidy * 15) / 100;
+		}
+		else if (work->height < rewardsStage4Start) { // 15% tnode ; miner 5%
+			devf1 = (coinbasesubsidy * 10) / 100;
+			devf2 = (coinbasesubsidy * 55) / 100;
+			devf3 = (coinbasesubsidy * 15) / 100;
+			devf4 = (coinbasesubsidy * 15) / 100;
+		}
+		else if (work->height < rewardsStage5Start) { // 20% tnode; miner 10%
+			devf1 = (coinbasesubsidy * 10) / 100;
+			devf2 = (coinbasesubsidy * 40) / 100;
+			devf3 = (coinbasesubsidy * 20) / 100;
+			devf4 = (coinbasesubsidy * 20) / 100;
+		}
+		else if (work->height < rewardsStage6Start) { // 20% tnode; miner 15%
+			devf1 = (coinbasesubsidy * 10) / 100;
+			devf2 = (coinbasesubsidy * 35) / 100;
+			devf3 = (coinbasesubsidy * 20) / 100;
+			devf4 = (coinbasesubsidy * 20) / 100;
+		}
+		else {										  // 25% tnode; miner 20%
+			devf1 = (coinbasesubsidy * 10) / 100;
+			devf2 = (coinbasesubsidy * 20) / 100;
+			devf3 = (coinbasesubsidy * 25) / 100;
+			devf4 = (coinbasesubsidy * 25) / 100;
+		}
+		if (!tmp || !json_is_number(tmp)) {
+			applog(LOG_ERR, "JSON invalid coinbasevalue");
+			goto out;
+		}
+
+			mnval = json_object_get(val, "tnode");
+			mnamount = json_object_get(mnval, "amount");
+			mnaddy = json_object_get(mnval, "payee");
+			mnscript = json_object_get(mnval, "script");
+		/*	
+			printf("mn addy %s", json_string_value(mnaddy));
+			printf("mn amount %d", json_integer_value(mnamount));
+			printf("mn script %d", json_string_value(mnscript));
+		*/	
+
+		cbvalue = (int64_t)(json_is_integer(tmp) ? json_integer_value(tmp) : json_number_value(tmp));
+		
+		cbvalue = /*(uint32_t)*/ cbvalue + /*(uint32_t)*/devf4;
+		cbtx = (uchar*)malloc(256 * 256);
+		be32enc((uint32_t *)cbtx, 0x03000500); // version /
+//		((uint32_t*)cbtx)[0]  = 0x03000500;
+		cbtx[4] = 1; // in-counter /
+		memset(cbtx + 5, 0x00, 32); // prev txout hash /
+		le32enc((uint32_t *)(cbtx + 37), 0xffffffff); // prev txout index /
+		cbtx_size = 43;
+		// BIP 34: height in coinbase /
+		//		for (n = work->height; n; n >>= 8)
+		//			cbtx[cbtx_size++] = n & 0xff;
+		cbtx[cbtx_size++] = 04;
+		for (int i = 0; i<4; i++)
+			cbtx[cbtx_size++] = ((unsigned char*)ranraw)[i];
+		cbtx[42] = cbtx_size - 43;
+		cbtx[41] = cbtx_size - 42; // scriptsig length /
+		le32enc((uint32_t *)(cbtx + cbtx_size), 0xffffffff); // sequence /
+		cbtx_size += 4;
+
+		cbtx[cbtx_size++] = (json_integer_value(mnamount) != 0) ? 5 : 4;; // out-counter /
+
+		le32enc((uint32_t *)(cbtx + cbtx_size), (uint32_t)cbvalue); // value /
+		le32enc((uint32_t *)(cbtx + cbtx_size + 4), cbvalue >> 32);
+		cbtx_size += 8;
+		cbtx[cbtx_size++] = (uint8_t)pk_script_size; // txout-script length /
+		memcpy(cbtx + cbtx_size, pk_script, pk_script_size);
+		cbtx_size += (int)pk_script_size;
+		////// null data
+		//		le32enc((uint32_t *)(cbtx + cbtx_size), (uint32_t)0); // value /
+		//		le32enc((uint32_t *)(cbtx + cbtx_size + 4), 0 >> 32);
+		//		cbtx_size += 8;
+		//		cbtx[cbtx_size++] = (uint8_t)pk_null_size; // txout-script length /
+		//		memcpy(cbtx + cbtx_size, pk_null, pk_null_size);
+		//		cbtx_size += (int)pk_null_size;
+
+		/// append here dev fee and masternode payment ////
+		/*   test */
+		char coinb0[90] = { 0 };
+		char coinb1[74] = { 0 };
+		char coinb2[74] = { 0 };
+		char coinb3[74] = { 0 };
+		char coinb4[74] = { 0 };
+		char coinb5[74] = { 0 };
+		char coinb6[74] = { 0 };
+		char coinb7[90] = { 0 };
+		char script_payee[1024];
+
+
+		// for mainnet
+
+		base58_decode("Gf8XeYLLucQjMS8apuwBTPfbPN7eGd7r5h", script_payee);
+		job_pack_tx(coinb1, devf1, script_payee);
+
+		base58_decode("Gf3ZcqRci9yqu9ABsEp2SsvEmtvGjp6AoG", script_payee);
+		job_pack_tx(coinb2, devf2, script_payee);
+
+		base58_decode("GWrM3WGoKUegYJ6yTGHtH4ozmwZx9F8MiK", script_payee);
+		job_pack_tx(coinb3, devf3, script_payee);
+
+//		base58_decode("GJEJMcKfsk28NmkDFai6fdqB2nXfyPdPz8", script_payee);
+//		job_pack_tx(coinb4, devf4, script_payee);
+
+		if (json_integer_value(mnamount) != 0) {
+		
+			base58_decode((char*)json_string_value(mnaddy), script_payee);
+			//		memcpy(script_payee, json_string_value(mnscript),strlen(json_string_value(mnscript)));
+			job_pack_tx(coinb6, json_integer_value(mnamount), script_payee);
+		}
+
+		strcat(coinb7, "00000000"); // locktime
+
+		hex2bin(cbtx + cbtx_size, coinb1, strlen(coinb1));
+		cbtx_size = cbtx_size + (int)((strlen(coinb1)) / 2);
+
+		hex2bin(cbtx + cbtx_size, coinb2, strlen(coinb2));
+		cbtx_size = cbtx_size + (int)((strlen(coinb2)) / 2);
+
+		hex2bin(cbtx + cbtx_size, coinb3, strlen(coinb3));
+		cbtx_size = cbtx_size + (int)((strlen(coinb3)) / 2);
+
+//		hex2bin(cbtx + cbtx_size, coinb4, strlen(coinb4));
+//		cbtx_size = cbtx_size + (int)((strlen(coinb4)) / 2);
+
+//		hex2bin(cbtx + cbtx_size, coinb5, strlen(coinb5));
+//		cbtx_size = cbtx_size + (int)((strlen(coinb5)) / 2);
+
+		if (json_integer_value(mnamount) != 0) {
+		hex2bin(cbtx + cbtx_size, coinb6, strlen(coinb6));
+		cbtx_size = cbtx_size + (int)((strlen(coinb6)) / 2);
+		}
+		hex2bin(cbtx + cbtx_size, coinb7, strlen(coinb7));
+		cbtx_size = cbtx_size + (int)((strlen(coinb7)) / 2);
+		cbtx[cbtx_size] = myobj_len/2;
+		cbtx_size++;
+		hex2bin(cbtx + cbtx_size, coinbase_payload, myobj_len);
+		cbtx_size = cbtx_size + (int)(myobj_len/2);
+		free(coinbase_payload);
+		coinbase_append = true;
+		
+
+
+	}
+	if (coinbase_append) {
+		unsigned char xsig[100];
+		int xsig_len = 0;
+		if (*coinbase_sig) {
+			n = (int)strlen(coinbase_sig);
+			if (cbtx[41] + xsig_len + n <= 100) {
+				memcpy(xsig + xsig_len, coinbase_sig, n);
+				xsig_len += n;
+			}
+			else {
+				applog(LOG_WARNING, "Signature does not fit in coinbase, skipping");
+			}
+		}
+		tmp = json_object_get(val, "coinbaseaux");
+		if (tmp && json_is_object(tmp)) {
+			void *iter = json_object_iter(tmp);
+			while (iter) {
+				unsigned char buf[100];
+				const char *s = json_string_value(json_object_iter_value(iter));
+				n = s ? (int)(strlen(s) / 2) : 0;
+				if (!s || n > 100 || !hex2bin(buf, s, n)) {
+					applog(LOG_ERR, "JSON invalid coinbaseaux");
+					break;
+				}
+				if (cbtx[41] + xsig_len + n <= 100) {
+					memcpy(xsig + xsig_len, buf, n);
+					xsig_len += n;
+				}
+				iter = json_object_iter_next(tmp, iter);
+			}
+		}
+		if (xsig_len) {
+			unsigned char *ssig_end = cbtx + 42 + cbtx[41];
+			int push_len = cbtx[41] + xsig_len < 76 ? 1 :
+				cbtx[41] + 2 + xsig_len > 100 ? 0 : 2;
+			n = xsig_len + push_len;
+			memmove(ssig_end + n, ssig_end, cbtx_size - 42 - cbtx[41]);
+			cbtx[41] += n;
+			if (push_len == 2)
+				*(ssig_end++) = 0x4c;
+			if (push_len)
+				*(ssig_end++) = xsig_len;
+			memcpy(ssig_end, xsig, xsig_len);
+			cbtx_size += n;
+		}
+	}
+//	printf("cbtx %s \n", cbtx);
+	n = varint_encode(txc_vi, 1 + tx_count);
+	work->txs = (char*)malloc(2 * (n + cbtx_size + tx_size) + 1);
+	dbin2hex(work->txs, txc_vi, n);
+	dbin2hex(work->txs + 2 * n, cbtx, cbtx_size);
+//	printf("cbtx %s \n", work->txs);
 	// generate merkle root 
 	merkle_tree = (uchar(*)[32]) calloc(((1 + tx_count + 1) & ~1), 32);
 
@@ -3186,7 +3663,7 @@ static bool stratum_gen_work_m7(struct stratum_ctx *sctx, struct work *work)
 {
 
 	if (!sctx->job.job_id) {
-		// applog(LOG_WARNING, "stratum_gen_work: job not yet retrieved");
+	    applog(LOG_WARNING, "stratum_gen_work: job not yet retrieved");
 		return false;
 	}
 
@@ -3261,7 +3738,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	int i;
 
 	if (!sctx->job.job_id) {
-//		applog(LOG_WARNING, "stratum_gen_work: job not yet retrieved");
+		applog(LOG_WARNING, "stratum_gen_work: job not yet retrieved");
 		return false;
 	}
 
@@ -3554,7 +4031,7 @@ static void *miner_thread(void *userdata)
 	int switchn = pool_switch_count;
 	int thr_id = mythr->id;
 	int dev_id = device_map[thr_id % MAX_GPUS];
-
+	stratum_ctx* ctx = &stratum;
 
 	struct work work;
 	struct mtp mtp;
@@ -3695,7 +4172,11 @@ static void *miner_thread(void *userdata)
 				regen = ((nonceptr[1] & 0xFF00) >= 0xF000);
 			}
 			regen = regen || extrajob;
-
+			if (!regen)
+			if (strncmp(stratum.job.job_id, g_work.job_id + 8, sizeof(g_work.job_id) - 8) != 0)
+			{
+				regen = true;
+			}
 			if (regen || opt_algo == ALGO_MTP || opt_algo == ALGO_MTPTCR) {
 				
 

@@ -1,5 +1,4 @@
 ﻿
-
 #include "argon2ref/argon2.h"
 #include "merkletree/mtp.h"
 
@@ -76,7 +75,7 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 //		CUDA_SAFE_CALL(cudaSetDeviceFlags(cudaDeviceScheduleYield));
 		CUDA_SAFE_CALL(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
 //		cudaDeviceSynchronize();
-		cudaStreamCreate(&s0);
+//		cudaStreamCreate(&s0);
 		cudaDeviceProp props;
 		cudaGetDeviceProperties(&props, dev_id);
 		int intensity = 20;
@@ -98,7 +97,7 @@ extern "C" int scanhash_mtptcr(int nthreads,int thr_id, struct work* work, uint3
 
  
 	}
-
+	cudaStreamCreate(&s0);
 	uint32_t _ALIGN(128) endiandata[20];
 	((uint32_t*)pdata)[19] = (pdata[20]); //*/0x00100000; // mtp version not the actual nonce
 
@@ -159,8 +158,8 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 		uint32_t foundNonce;
 
 		*hashes_done = pdata[19] - first_nonce + throughput;
-		foundNonce = mtptcr_cpu_hash_32(thr_id, throughput, pdata[19],s0);
 
+		foundNonce = mtptcr_cpu_hash_32(thr_id, throughput, pdata[19],s0);
 
 		if (JobId[thr_id] != work->data[16] || XtraNonce2[thr_id] != ((uint64_t*)work->xnonce2)[0])
 			return 0; // if work has changed stop and go back to the initialization
@@ -204,7 +203,7 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 				int len = 0;
 
 				memcpy(mtp->nProofMTP, nProofMTP, sizeof(unsigned char)* MTP_L * 3 * 353);
-
+				cudaStreamDestroy(s0);
 				return res;
 
 			} else {
@@ -224,7 +223,7 @@ argon2_ctx_from_mtp(&context[thr_id], &instance[thr_id]);
 TheEnd:
 
 		*hashes_done = pdata[19] - first_nonce;
-
+		cudaStreamDestroy(s0);
 	return 0;
 }
 
@@ -262,7 +261,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 
 		cudaDeviceReset();
 		cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
-		cudaStreamCreate(&s0);
+
 		//		cudaSetDeviceFlags(cudaDeviceScheduleYield);
 		//		cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte); 
 
@@ -287,7 +286,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 
 
 	}
-
+		cudaStreamCreate(&s0);
 	uint32_t _ALIGN(128) endiandata[20];
 
 	((uint32_t*)pdata)[19] = (pdata[20]); //*/0x00100000; // mtp version not the actual nonce
@@ -297,6 +296,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 		endiandata[k] = pdata[k];
 
 	if (JobId[thr_id] != work->data[17] ) {
+
 
 		if (JobId[thr_id] != 0) {
 
@@ -323,6 +323,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 		get_tree(thr_id, dx[thr_id],s0);
 
 		cudaStreamSynchronize(s0);
+
 		//	printf("Step 2 : Compute the root Φ of the Merkle hash tree \n");
 		//  sleep(10);
 
@@ -388,7 +389,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 				int len = 0;
 
 				memcpy(mtp->nProofMTP, nProofMTP, sizeof(unsigned char)* MTP_L * 3 * 353);
-
+				cudaStreamDestroy(s0);
 				return res;
 
 			}
@@ -427,7 +428,7 @@ extern "C" int scanhash_mtptcr_solo(int nthreads, int thr_id, struct work* work,
 TheEnd:
 	//		sctx->job.IncXtra = true;
 	*hashes_done = pdata[19] - first_nonce;
-
+	cudaStreamDestroy(s0);
 	return 0;
 }
 
